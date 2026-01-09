@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0" style="color: #D4A5A5;">🛒 嚴選商城</h3>
+            <small class="text-muted">AI 智能媒合，整合全球時尚資源</small>
+        </div>
+
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary rounded-pill btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                <i class="fas fa-globe me-1"></i> {{ locale }}
+            </button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="/set_locale/zh_TW">🇹🇼 台灣 (Asian Fit)</a></li>
+                <li><a class="dropdown-item" href="/set_locale/en_US">🇺🇸 Global (US/EU Fit)</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="glass-card p-3 mb-4">
+        <form action="/shop" method="GET" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <select name="category" class="form-select border-0 shadow-sm">
+                    <option value="">📁 全部分類</option>
+                    <option value="top" {% if current_cat=='top' %}selected{% endif %}>👕 上身 (Tops)</option>
+                    <option value="bottom" {% if current_cat=='bottom' %}selected{% endif %}>👖 下身 (Bottoms)</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <div class="input-group shadow-sm">
+                    <span class="input-group-text bg-white border-0 text-muted">$</span>
+                    <input type="number" name="min" class="form-control border-0" placeholder="Min" value="{{ min_p }}">
+                    <span class="input-group-text bg-white border-0 text-muted">-</span>
+                    <input type="number" name="max" class="form-control border-0" placeholder="Max" value="{{ max_p }}">
+                </div>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <button type="submit" class="btn btn-style text-white rounded-pill px-4">
+                    <i class="fas fa-filter me-1"></i> 篩選
+                </button>
+                <a href="/shop" class="btn btn-outline-secondary rounded-pill px-3 ms-1">重置</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="row g-4">
+        {% for item in items %}
+        <div class="col-6 col-md-3">
+            <div class="glass-card p-0 h-100 position-relative overflow-hidden group hover-up">
+
+                <div class="position-absolute top-0 end-0 m-2 z-index-1">
+                    {% if item.is_external %}
+                        <span class="badge bg-dark text-white shadow-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>外部夥伴
+                        </span>
+                    {% elif item.is_ad %}
+                        <span class="badge bg-light text-muted border shadow-sm">贊助</span>
+                    {% else %}
+                        <span class="badge bg-success bg-opacity-75 shadow-sm">
+                            <i class="fas fa-shield-alt me-1"></i>AI嚴選
+                        </span>
+                    {% endif %}
+                </div>
+
+                <div class="ratio ratio-1x1 bg-light">
+                    <img src="{{ item.image if item.image.startswith('http') else url_for('static', filename=item.image) }}"
+                         class="w-100 h-100"
+                         style="object-fit: cover;"
+                         alt="{{ item.title }}">
+                </div>
+
+                <div class="p-3 d-flex flex-column h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <small class="text-muted text-uppercase fw-bold">{{ item.brand }}</small>
+                        {% if not item.is_ad and not item.is_external %}
+                        <small class="text-success fw-bold" title="AI 推薦信心值">
+                            {{ item.trust }}% <i class="fas fa-check-circle"></i>
+                        </small>
+                        {% endif %}
+                    </div>
+
+                    <h6 class="fw-bold text-dark text-truncate mb-1">{{ item.title }}</h6>
+                    <h5 class="text-primary fw-bold mb-3">{{ currency }} {{ item.price }}</h5>
+
+                    <div class="mt-auto d-grid gap-2">
+                        {% if item.is_external %}
+                            <a href="{{ item.link }}" target="_blank" class="btn btn-sm btn-outline-dark rounded-pill">
+                                前往官網查看 <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        {% else %}
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="alert('已加入比價清單')">
+                                <i class="fas fa-list me-1"></i> 清單
+                            </button>
+                            <button class="btn btn-sm btn-style text-white rounded-pill">
+                                <i class="fas fa-shopping-cart me-1"></i> 加入購物車
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if items|length == 0 %}
+    <div class="text-center py-5">
+        <i class="fas fa-box-open fa-3x text-muted mb-3 opacity-25"></i>
+        <p class="text-muted">找不到符合價格區間的商品，試試看調整篩選條件？</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .hover-up { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .hover-up:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+
+    .btn-style {
+        background-color: #D4A5A5;
+        border: 1px solid #D4A5A5;
+    }
+    .btn-style:hover {
+        background-color: #c08e8e;
+        border-color: #c08e8e;
+    }
+    .glass-card {
+        background: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    .ratio-1x1 {
+        position: relative;
+        width: 100%;
+        padding-top: 100%; /* 1:1 Aspect Ratio */
+    }
+    .ratio-1x1 > img {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+    }
+</style>
+{% endblock %}

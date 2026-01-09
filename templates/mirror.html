@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Mirror OS</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #000; /* 純黑背景，適合鏡面反射 */
+            color: #fff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            padding: 40px;
+        }
+
+        /* 區域劃分 */
+        .top-left { grid-area: 1 / 1 / 2 / 2; }
+        .top-right { grid-area: 1 / 3 / 2 / 4; text-align: right; }
+        .center { grid-area: 2 / 2 / 3 / 3; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .bottom-center { grid-area: 3 / 2 / 4 / 3; text-align: center; align-self: end; }
+
+        /* 元件樣式 */
+        h1 { font-size: 80px; margin: 0; font-weight: 200; }
+        h2 { font-size: 32px; margin: 10px 0; font-weight: 300; opacity: 0.8; }
+        .weather-icon { font-size: 60px; margin-bottom: 20px; }
+
+        .outfit-card {
+            border: 2px solid #fff;
+            padding: 30px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            margin-top: 20px;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .highlight { color: #D4A5A5; font-weight: bold; }
+
+        /* 模擬 AR 掃描框 */
+        .ar-frame {
+            width: 300px;
+            height: 500px;
+            border: 4px dashed rgba(255,255,255,0.3);
+            border-radius: 30px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none; /* 預設隱藏 */
+        }
+
+        .ar-text {
+            position: absolute;
+            bottom: -40px;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-left">
+        <h1 id="clock">12:00</h1>
+        <h2 id="date">Jan 07, Wed</h2>
+        <div style="margin-top: 20px; font-size: 1.2rem;">
+            <i class="fas fa-user-circle"></i> Hi, {{ user['name'] }}
+        </div>
+    </div>
+
+    <div class="top-right">
+        <i class="fas fa-cloud-sun weather-icon"></i>
+        <h1>{{ weather.temp }}°</h1>
+        <h2>{{ weather.desc }} (Taoyuan)</h2>
+        <div>濕度: {{ weather.humidity }}%</div>
+    </div>
+
+    <div class="center">
+        <div class="outfit-card">
+            <h3 style="margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 3px;">Daily Outfit</h3>
+            <p style="font-size: 24px; line-height: 1.5;">
+                {{ rec }}
+            </p>
+            <small style="opacity: 0.6;">*基於您的今日行程與天氣</small>
+        </div>
+    </div>
+
+    <div class="bottom-center">
+        <p><i class="fas fa-microphone"></i> 試著說："Hey Style, 幫我拍照"</p>
+        <button onclick="toggleAR()" style="background: transparent; border: 1px solid white; color: white; padding: 10px 30px; border-radius: 50px; cursor: pointer; margin-top: 10px;">
+            <i class="fas fa-vr-cardboard me-2"></i> 啟動 AR 試穿
+        </button>
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('index') }}" style="color: #666; text-decoration: none; font-size: 12px;">離開鏡像模式</a>
+        </div>
+    </div>
+
+    <div class="ar-frame" id="arFrame">
+        <div class="ar-text">SCANNING BODY...</div>
+        <i class="fas fa-plus" style="position: absolute; top: 20px; left: 20px;"></i>
+        <i class="fas fa-plus" style="position: absolute; top: 20px; right: 20px;"></i>
+        <i class="fas fa-plus" style="position: absolute; bottom: 20px; left: 20px;"></i>
+        <i class="fas fa-plus" style="position: absolute; bottom: 20px; right: 20px;"></i>
+    </div>
+
+    <script>
+        // 時鐘功能
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            const options = { weekday: 'short', month: 'short', day: 'numeric' };
+            document.getElementById('date').innerText = now.toLocaleDateString('en-US', options);
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // 模擬 AR 開關
+        function toggleAR() {
+            const frame = document.getElementById('arFrame');
+            if (frame.style.display === 'block') {
+                frame.style.display = 'none';
+            } else {
+                frame.style.display = 'block';
+                // 檢查硬體 API
+                fetch('/api/check_ar_capability', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device: navigator.userAgent })
+                }).then(r => r.json()).then(data => {
+                    if(!data.ar_ready) alert(data.msg);
+                });
+            }
+        }
+    </script>
+</body>
+</html>

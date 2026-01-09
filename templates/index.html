@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row align-items-center min-vh-75 py-5">
+    <div class="col-lg-6 text-start">
+        <span class="badge bg-danger mb-3 rounded-pill px-3 py-2">NEW 功能上線</span>
+        <h1 class="display-3 fw-bold mb-4" style="line-height: 1.2;">
+            AI 智慧風格顧問<br>
+            <span style="color: #D4A5A5;">穿出你的自信美</span>
+        </h1>
+        <p class="lead text-muted mb-5">
+            不再盲目跟風。我們結合頂尖的 <strong>Mediapipe 臉部偵測</strong> 與 <strong>身型比例分析</strong>。<br>
+            只需 3 秒，為您量身打造專屬的髮型、妝容與穿搭建議。
+        </p>
+        <div class="d-flex gap-3">
+            <a href="{{ url_for('analysis_page') }}" class="btn btn-style btn-lg rounded-pill px-5 py-3">立即免費體驗</a>
+            <a href="#features" class="btn btn-outline-secondary btn-lg rounded-pill px-4 py-3">了解更多</a>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" class="img-fluid rounded-5 shadow-lg" alt="Fashion AI" style="transform: rotate(2deg);">
+    </div>
+</div>
+
+<hr class="my-5" style="opacity: 0.1;">
+
+<div id="features" class="py-5">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold">三大核心技術</h2>
+        <p class="text-muted">解決您的網購決策焦慮</p>
+    </div>
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="glass-card text-center h-100 border-0">
+                <i class="fas fa-id-card-alt fa-3x mb-3" style="color: #D4A5A5;"></i>
+                <h4>精準臉型分析</h4>
+                <p class="text-muted mt-3">透過 AI 掃描五官特徵，判斷您是圓臉、方臉還是鵝蛋臉，推薦最修飾的髮型。</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-card text-center h-100 border-0">
+                <i class="fas fa-ruler-combined fa-3x mb-3" style="color: #D4A5A5;"></i>
+                <h4>身型比例診斷</h4>
+                <p class="text-muted mt-3">輸入肩、胸、腰、臀數據，科學化判定梨形或蘋果形身材，揚長避短。</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-card text-center h-100 border-0">
+                <i class="fas fa-tshirt fa-3x mb-3" style="color: #D4A5A5;"></i>
+                <h4>情境式推薦</h4>
+                <p class="text-muted mt-3">無論是通勤、約會還是派對，根據場合提供最得體的整體造型建議。</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

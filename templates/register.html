@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center min-vh-100 py-5">
+    <div class="col-md-6 col-lg-5">
+        <div class="glass-card fade-in">
+            <div class="text-center mb-4">
+                <h2 class="fw-bold" style="color: #D4A5A5;">加入 Smart Style</h2>
+                <p class="text-muted">30 秒建立檔案，開啟您的 AI 時尚旅程</p>
+            </div>
+
+            <form action="{{ url_for('register_page') }}" method="POST">
+
+                <h5 class="section-title mb-3"><i class="fas fa-id-card me-2"></i>帳號資訊</h5>
+
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="fas fa-user text-muted"></i></span>
+                        <input type="text" name="name" class="form-control border-start-0 ps-0" placeholder="您的暱稱" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="fas fa-envelope text-muted"></i></span>
+                        <input type="email" name="email" class="form-control border-start-0 ps-0" placeholder="Email 信箱" required>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0"><i class="fas fa-lock text-muted"></i></span>
+                        <input type="password" name="password" class="form-control border-start-0 ps-0" placeholder="設定密碼" required>
+                    </div>
+                </div>
+
+                <hr class="my-4 text-muted opacity-25">
+
+                <h5 class="section-title mb-3"><i class="fas fa-ruler-combined me-2"></i>身體密碼 <small class="text-muted fs-6 fw-normal">(分析身形用)</small></h5>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white px-2"><i class="fas fa-birthday-cake small text-muted"></i></span>
+                            <input type="number" name="age" class="form-control" placeholder="年齡">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <select name="gender" class="form-select text-muted">
+                            <option value="" selected disabled>性別</option>
+                            <option value="female">女性</option>
+                            <option value="male">男性</option>
+                            <option value="other">多元/不公開</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <div class="input-group">
+                            <input type="number" name="height" class="form-control" placeholder="身高">
+                            <span class="input-group-text bg-white text-muted small">cm</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="input-group">
+                            <input type="number" name="weight" class="form-control" placeholder="體重">
+                            <span class="input-group-text bg-white text-muted small">kg</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label text-secondary small fw-bold">您在意的穿搭困擾 (可複選)</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for issue in ['顯胖', '腿短', '小腹', '寬肩', '五五身', '大腿粗'] %}
+                        <input type="checkbox" class="btn-check" name="issues" id="issue_{{loop.index}}" value="{{issue}}" autocomplete="off">
+                        <label class="btn btn-outline-secondary btn-sm rounded-pill" for="issue_{{loop.index}}">{{issue}}</label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label text-secondary small fw-bold mb-2">您偏好的風格元素 (點擊分類切換)</label>
+
+                    <ul class="nav nav-pills mb-3 small" id="pills-tab" role="tablist" style="background: rgba(255,255,255,0.5); padding: 5px; border-radius: 10px;">
+                        <li class="nav-item"><button class="nav-link active rounded-pill px-3" data-bs-toggle="pill" data-bs-target="#tab-region" type="button">區域</button></li>
+                        <li class="nav-item"><button class="nav-link rounded-pill px-3" data-bs-toggle="pill" data-bs-target="#tab-scene" type="button">場景</button></li>
+                        <li class="nav-item"><button class="nav-link rounded-pill px-3" data-bs-toggle="pill" data-bs-target="#tab-design" type="button">設計</button></li>
+                        <li class="nav-item"><button class="nav-link rounded-pill px-3" data-bs-toggle="pill" data-bs-target="#tab-trend" type="button">潮流</button></li>
+                        <li class="nav-item"><button class="nav-link rounded-pill px-3" data-bs-toggle="pill" data-bs-target="#tab-art" type="button">藝術</button></li>
+                    </ul>
+
+                    <div class="tab-content border p-3 rounded-3 bg-white bg-opacity-25" id="pills-tabContent">
+                        <div class="tab-pane fade show active" id="tab-region">
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for tag in taxonomy['region'] %}
+                                <input type="checkbox" class="btn-check" name="style_like" id="reg_{{loop.index}}" value="{{tag}}">
+                                <label class="btn btn-outline-style btn-sm rounded-pill" for="reg_{{loop.index}}">{{tag}}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tab-scene">
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for tag in taxonomy['scene'] %}
+                                <input type="checkbox" class="btn-check" name="style_like" id="scn_{{loop.index}}" value="{{tag}}">
+                                <label class="btn btn-outline-style btn-sm rounded-pill" for="scn_{{loop.index}}">{{tag}}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tab-design">
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for tag in taxonomy['design'] %}
+                                <input type="checkbox" class="btn-check" name="style_like" id="des_{{loop.index}}" value="{{tag}}">
+                                <label class="btn btn-outline-style btn-sm rounded-pill" for="des_{{loop.index}}">{{tag}}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tab-trend">
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for tag in taxonomy['trend'] %}
+                                <input type="checkbox" class="btn-check" name="style_like" id="trd_{{loop.index}}" value="{{tag}}">
+                                <label class="btn btn-outline-style btn-sm rounded-pill" for="trd_{{loop.index}}">{{tag}}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="tab-art">
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for tag in taxonomy['art'] %}
+                                <input type="checkbox" class="btn-check" name="style_like" id="art_{{loop.index}}" value="{{tag}}">
+                                <label class="btn btn-outline-style btn-sm rounded-pill" for="art_{{loop.index}}">{{tag}}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                     <label class="form-label text-secondary small fw-bold">偏好色系</label>
+                     <div class="d-flex flex-wrap gap-2">
+                        {% for color in ['大地色', '黑白灰', '莫蘭迪', '繽紛亮色', '粉嫩色'] %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="colors" value="{{color}}" id="color_{{loop.index}}">
+                            <label class="form-check-label small text-muted" for="color_{{loop.index}}">{{color}}</label>
+                        </div>
+                        {% endfor %}
+                     </div>
+                </div>
+
+                <div class="mb-4 form-check ms-1">
+                    <input type="checkbox" class="form-check-input" id="agree_tos" name="agree_tos" required>
+                    <label class="form-check-label small text-muted" for="agree_tos">
+                        我已閱讀並同意 <a href="{{ url_for('terms_page') }}" target="_blank" class="text-decoration-none" style="color: #D4A5A5;">服務條款</a> 與 <a href="#" class="text-decoration-none" style="color: #D4A5A5;">隱私政策</a>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-style w-100 rounded-pill py-2 shadow-sm mb-3 fw-bold">
+                    立即註冊，開始變美
+                </button>
+
+                <div class="text-center">
+                    <small class="text-muted">已經有帳號了嗎？ <a href="{{ url_for('login_page') }}" class="fw-bold text-decoration-none" style="color: #D4A5A5;">登入</a></small>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .fade-in { animation: fadeIn 0.8s ease-in-out; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+
+    /* 輸入框樣式優化 */
+    .input-group-text { border-radius: 10px 0 0 10px; border-color: #eee; }
+    .form-control, .form-select { border-radius: 0 10px 10px 0; border-color: #eee; }
+    .form-control:focus, .form-select:focus { box-shadow: none; border-color: #D4A5A5; }
+
+    /* 區塊標題 */
+    .section-title {
+        font-size: 0.95rem;
+        color: #D4A5A5;
+        font-weight: bold;
+        border-left: 3px solid #D4A5A5;
+        padding-left: 10px;
+    }
+
+    /* 自定義風格按鈕 */
+    .btn-outline-style {
+        color: #888;
+        border-color: #e0e0e0;
+        background: #fff;
+    }
+    .btn-outline-style:hover {
+        background-color: #fcfcfc;
+        color: #666;
+        border-color: #ccc;
+    }
+    .btn-check:checked + .btn-outline-style {
+        background-color: #D4A5A5;
+        border-color: #D4A5A5;
+        color: white;
+    }
+
+    /* 困擾按鈕 */
+    .btn-check:checked + .btn-outline-secondary {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    /* Tabs 樣式客製化：讓 Bootstrap 藍色變成我們的主題粉色 */
+    .nav-pills .nav-link {
+        color: #888;
+        font-weight: 500;
+    }
+    .nav-pills .nav-link.active {
+        background-color: #D4A5A5;
+        color: white;
+    }
+</style>
+{% endblock %}

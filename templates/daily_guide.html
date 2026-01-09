@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    
+    <div style="text-align: center; margin-bottom: 40px;">
+        <h2 style="color: #9b8ba3;">📅 每日穿搭嚮導</h2>
+        <p style="color: #666;">早安，{{ session.user_name }}！這是為您準備的今日策略。</p>
+    </div>
+
+    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        
+        <div class="card" style="flex: 1; min-width: 300px; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #555;">
+            <h3 style="margin-top: 0;">今日天氣 (Taoyuan)</h3>
+            <div style="font-size: 3em; font-weight: bold; margin: 10px 0;">
+                {{ weather.temp }}°C
+            </div>
+            <div style="font-size: 1.2em; margin-bottom: 10px;">
+                濕度 {{ weather.humidity }}% | {{ weather.desc }}
+            </div>
+            <p style="background: rgba(255,255,255,0.6); padding: 10px; border-radius: 10px;">
+                💡 體感提示：
+                {% if weather.humidity > 80 %}
+                    濕度很高，體感會比實際溫度更悶熱，務必選擇透氣材質。
+                {% elif weather.temp < 18 %}
+                    早晚溫差大，別忘了帶件外套。
+                {% else %}
+                    舒適宜人，適合各種穿搭！
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="card" style="flex: 1; min-width: 300px;">
+            <h3 style="margin-top: 0;">今日行程</h3>
+            {% if events %}
+                {% for event in events %}
+                <div style="background: #fdfdfd; padding: 10px; border-left: 4px solid #9b8ba3; margin-bottom: 10px; border-radius: 5px;">
+                    <strong>{{ event.title }}</strong>
+                    <div style="font-size: 0.9em; color: #888;">{{ event.outfit_desc }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; padding: 20px; color: #aaa;">
+                    今天沒有特別安排，享受自由的一天吧！
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px; border: 2px solid #9b8ba3;">
+        <h3 style="color: #9b8ba3; text-align: center;">✨ AI 綜合穿搭建議</h3>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+            <div style="font-size: 5em;">🧥</div> 
+            <div>
+                <ul style="line-height: 1.8; font-size: 1.1em;">
+                    {% for item in advice %}
+                        <li>{{ item }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="{{ url_for('shop_page') }}" class="btn btn-primary">去衣櫃找類似單品</a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

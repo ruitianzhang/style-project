@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Style | AI 造型師</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-color: #D4A5A5; /* 莫蘭迪粉 */
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-top: 80px; /* 預設：為了桌面版 Fixed Navbar */
+            padding-bottom: 0;
+        }
+
+        /* --- 通用樣式 --- */
+        .glass-card {
+            background: var(--glass-bg);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .btn-style {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            transition: 0.3s;
+        }
+        .btn-style:hover {
+            background: #c08e8e;
+            color: white;
+            box-shadow: 0 4px 15px rgba(212, 165, 165, 0.4);
+        }
+
+        .cursor-pointer { cursor: pointer; }
+
+        /* --- 桌面版導航 (Desktop Navbar) --- */
+        .desktop-nav {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+
+        .navbar-brand {
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .nav-link {
+            font-weight: 500;
+            transition: color 0.3s;
+            color: #555;
+        }
+        .nav-link:hover { color: var(--primary-color) !important; }
+
+        /* --- 手機版底部導航 (Mobile Bottom Nav) --- */
+        .mobile-bottom-nav {
+            display: none; /* 預設隱藏 */
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #eee;
+            z-index: 1050;
+            justify-content: space-around;
+            padding: 8px 0;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
+        }
+
+        .mobile-nav-item {
+            text-align: center;
+            color: #999;
+            text-decoration: none;
+            font-size: 0.75rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mobile-nav-item i {
+            font-size: 1.4rem;
+            margin-bottom: 2px;
+            transition: 0.2s;
+        }
+
+        .mobile-nav-item.active { color: var(--primary-color); font-weight: bold; }
+        .mobile-nav-item.active i { transform: translateY(-2px); }
+
+        /* 手機版中間的大按鈕 (AI 分析) */
+        .mobile-nav-item.central-icon {
+            position: relative;
+        }
+        .mobile-nav-item.central-icon .icon-bg {
+            background: var(--primary-color);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: -25px; /* 讓它突出一半 */
+            border: 4px solid #fff;
+            box-shadow: 0 4px 10px rgba(212, 165, 165, 0.4);
+        }
+
+        /* --- RWD 媒體查詢 --- */
+        /* 當螢幕寬度小於 992px (平板/手機) */
+        @media (max-width: 991px) {
+            .desktop-nav { display: none !important; }     /* 隱藏上方導航 */
+            .mobile-bottom-nav { display: flex !important; } /* 顯示下方導航 */
+            
+            body {
+                padding-top: 10px;    /* 手機版上方不留白 */
+                padding-bottom: 80px; /* 手機版下方留白給導航列 */
+            }
+
+            /* 手機版標題優化 */
+            .container { padding-left: 20px; padding-right: 20px; }
+        }
+
+        /* 頁尾樣式 */
+        footer {
+            margin-top: auto;
+            background: rgba(248, 249, 250, 0.9);
+            padding: 30px 0;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #666;
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+        footer a { color: #888; text-decoration: none; transition: 0.3s; }
+        footer a:hover { color: var(--primary-color); }
+        
+        /* 簡單的淡入動畫 */
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg fixed-top desktop-nav">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-magic me-2"></i>Smart Style
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <ul class="navbar-nav align-items-center gap-1">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">首頁</a></li>
+
+                    {% if session.get('user_id') %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('community_page') }}">
+                                <i class="fas fa-users me-1 text-secondary"></i> 社群
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link fw-bold" href="{{ url_for('shop_page') }}" style="color: #E07A5F;">
+                                <i class="fas fa-shopping-bag me-1"></i> 商城
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link fw-bold" href="{{ url_for('trends_page') }}" style="color: #6A4C93;">
+                                <i class="fas fa-chart-line me-1"></i> 趨勢
+                            </a>
+                        </li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('analysis_page') }}">AI 分析</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ url_for('try_on_page') }}">試穿</a></li>
+
+                        <li class="nav-item">
+                            <a class="nav-link fw-bold text-success" href="{{ url_for('lab_page') }}">
+                                <i class="fas fa-flask me-1"></i> 實驗室
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link fw-bold text-warning" href="{{ url_for('premium_landing') }}">
+                                <i class="fas fa-crown me-1"></i> VIP
+                            </a>
+                        </li>
+
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-globe"></i>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end border-0 shadow">
+                                <li><a class="dropdown-item" href="/set_locale/zh_TW">🇹🇼 台灣 (Asian Fit)</a></li>
+                                <li><a class="dropdown-item" href="/set_locale/en_US">🇺🇸 Global (US/EU Fit)</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="nav-item dropdown ms-2">
+                            <a class="nav-link dropdown-toggle btn btn-outline-light text-dark rounded-pill px-3 border" href="#" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user-circle me-1"></i> {{ session.get('user_name') }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end border-0 shadow mt-2">
+                                <li><a class="dropdown-item" href="{{ url_for('profile_page') }}"><i class="fas fa-id-card me-2 text-muted"></i>個人檔案</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('history_page') }}"><i class="fas fa-history me-2 text-muted"></i>歷史紀錄</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('settings_page') }}"><i class="fas fa-cog me-2 text-muted"></i>隱私與設定</a></li>
+
+                                <li><a class="dropdown-item text-primary" href="{{ url_for('smart_mirror') }}"><i class="fas fa-video me-2"></i>智慧鏡子模式</a></li>
+
+                                {% if session.get('is_admin') %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger fw-bold" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-user-shield me-2"></i>後台管理</a></li>
+                                {% endif %}
+
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2 text-muted"></i>登出</a></li>
+                            </ul>
+                        </li>
+
+                    {% else %}
+                        <li class="nav-item ms-3">
+                            <a href="{{ url_for('login_page') }}" class="btn btn-outline-secondary rounded-pill px-4">登入 / 註冊</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="mobile-bottom-nav">
+        <a href="{{ url_for('index') }}" class="mobile-nav-item {{ 'active' if request.endpoint == 'index' }}">
+            <i class="fas fa-home"></i> <span>首頁</span>
+        </a>
+        <a href="{{ url_for('community_page') }}" class="mobile-nav-item {{ 'active' if request.endpoint == 'community_page' }}">
+            <i class="fas fa-users"></i> <span>社群</span>
+        </a>
+
+        <a href="{{ url_for('analysis_page') }}" class="mobile-nav-item central-icon">
+            <div class="icon-bg">
+                <i class="fas fa-camera"></i>
+            </div>
+        </a>
+
+        <a href="{{ url_for('shop_page') }}" class="mobile-nav-item {{ 'active' if request.endpoint == 'shop_page' }}">
+            <i class="fas fa-shopping-bag"></i> <span>商城</span>
+        </a>
+        <a href="{{ url_for('history_page') }}" class="mobile-nav-item {{ 'active' if request.endpoint == 'history_page' }}">
+            <i class="fas fa-user"></i> <span>我的</span>
+        </a>
+    </div>
+
+    <div class="container flex-grow-1 fade-in">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mt-3 rounded-pill text-center shadow-sm mx-auto" style="max-width: 600px;" role="alert">
+                {% if category == 'success' %}<i class="fas fa-check-circle me-2"></i>
+                {% elif category == 'warning' %}<i class="fas fa-heart me-2"></i> {% else %}<i class="fas fa-exclamation-circle me-2"></i>{% endif %}
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="desktop-nav">
+        <div class="container">
+            <div class="row justify-content-center mb-3">
+                <div class="col-md-8">
+                    <p class="mb-1 text-muted">
+                        <strong>【免責聲明】</strong>本系統之分析結果由 AI 生成，僅供穿搭參考。本系統不儲存人臉生物特徵，且不提供任何醫療或心理專業建議。
+                    </p>
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <a href="{{ url_for('terms_page') }}" class="mx-2">服務條款與隱私政策</a> |
+                <a href="{{ url_for('wellness_page') }}" class="mx-2 text-success"><i class="fas fa-seedling me-1"></i>心靈休憩站</a> |
+                <a href="{{ url_for('smart_mirror') }}" class="mx-2 text-primary">智慧鏡子模式</a>
+            </div>
+
+            <div class="text-muted small">
+                &copy; 2026 Smart Style | 靜宜大學畢業專題 Team 2<br>
+                Designed for Thesis Project
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

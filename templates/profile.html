@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold" style="color: #D4A5A5;">個人詳細資料</h2>
+            <button type="submit" form="profileForm" class="btn btn-style px-4 rounded-pill">
+                <i class="fas fa-save me-2"></i>儲存設定
+            </button>
+        </div>
+
+        <form method="POST" action="/profile" id="profileForm">
+
+            <div class="glass-card">
+                <h4 class="mb-4 border-bottom pb-2" style="color: #888;">基本資料</h4>
+
+                <div class="mb-3">
+                    <label class="form-label text-muted">Email (帳號)</label>
+                    <input type="text" class="form-control" value="{{ p.email }}" disabled style="background-color: #f0f0f0;">
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">暱稱</label>
+                        <input type="text" name="name" class="form-control" value="{{ p.name }}" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">年齡</label>
+                        <select name="age" class="form-select">
+                            <option value="" {% if not p.age %}selected{% endif %}>不公開</option>
+                            {% for i in range(16, 66) %}
+                            <option value="{{ i }}" {% if p.age == i %}selected{% endif %}>{{ i }} 歲</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">性別</label>
+                        <select name="gender" class="form-select">
+                            <option value="secret" {% if p.gender == 'secret' %}selected{% endif %}>不公開</option>
+                            <option value="female" {% if p.gender == 'female' %}selected{% endif %}>女性</option>
+                            <option value="male" {% if p.gender == 'male' %}selected{% endif %}>男性</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">身高 (cm)</label>
+                        <input type="number" name="height" class="form-control" value="{{ p.height }}">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">體重 (kg)</label>
+                        <input type="number" name="weight" class="form-control" value="{{ p.weight }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h4 class="mb-4 border-bottom pb-2" style="color: #888;">穿衣困擾 (AI 將針對此優化)</h4>
+                <div class="row">
+                    {% for issue in ['顯胖', '腿短', '顯肩寬', '小腹明顯', '駝背/圓肩', '假胯寬', '五五身'] %}
+                    <div class="col-md-4 mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="issues" value="{{ issue }}" id="issue_{{ loop.index }}"
+                                   {% if issue in p.issues %}checked{% endif %}>
+                            <label class="form-check-label" for="issue_{{ loop.index }}">{{ issue }}</label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-2">
+                    <input type="text" name="custom_issue" class="form-control" placeholder="其他困擾 (自填)...">
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <h4 class="mb-4 border-bottom pb-2" style="color: #888;">風格與顏色偏好</h4>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-success"><i class="fas fa-heart me-2"></i>喜歡的風格</label>
+                    <div class="row">
+                        {% for style in ['日系甜美', '韓系簡約', '歐美個性', '法式慵懶', '運動休閒', '古著Vintage'] %}
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="style_like" value="{{ style }}"
+                                       {% if style in p.styles.like %}checked{% endif %}>
+                                <label class="form-check-label">{{ style }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-danger"><i class="fas fa-times-circle me-2"></i>不喜歡 (避雷)</label>
+                    <div class="row">
+                        {% for style in ['日系甜美', '韓系簡約', '歐美個性', '法式慵懶', '運動休閒', '龐克', '蘿莉塔'] %}
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="style_dislike" value="{{ style }}"
+                                       {% if style in p.styles.dislike %}checked{% endif %}>
+                                <label class="form-check-label">{{ style }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <hr class="text-muted">
+
+                <div class="mb-2">
+                    <label class="form-label fw-bold">常去的場合</label>
+                    <div class="row">
+                        {% for occ in ['通勤(上班/上學)', '休閒(逛街/咖啡廳)', '約會', '運動健身', '派對/夜店', '度假/海邊'] %}
+                        <div class="col-md-6 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="occasions" value="{{ occ }}"
+                                       {% if occ in p.occasions %}checked{% endif %}>
+                                <label class="form-check-label">{{ occ }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-5 text-center">
+                <button type="submit" class="btn btn-style btn-lg px-5 rounded-pill shadow">
+                    確認並儲存設定
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+{% endblock %}

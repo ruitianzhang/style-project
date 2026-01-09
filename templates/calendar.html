@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold" style="color: #D4A5A5;"><i class="far fa-calendar-alt me-2"></i>穿搭日曆</h3>
+        <button class="btn btn-style rounded-pill" data-bs-toggle="modal" data-bs-target="#eventModal">
+            <i class="fas fa-plus me-1"></i> 新增行程
+        </button>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="glass-card p-4">
+                <div id="calendarGrid" class="row g-2">
+                    </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="glass-card h-100">
+                <h5 class="fw-bold border-bottom pb-2 mb-3">📅 近期行程</h5>
+                <div id="eventList">
+                    </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增穿搭計畫</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="date" id="evtDate" class="form-control mb-3">
+                <input type="text" id="evtTitle" class="form-control mb-3" placeholder="事件名稱 (如: 客戶會議)">
+                <textarea id="evtDesc" class="form-control" placeholder="穿搭備註 (如: 藍色襯衫 + 卡其褲)"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="addEvent()">儲存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const events = {{ events | safe }};
+
+function renderCalendar() {
+    let grid = document.getElementById('calendarGrid');
+    let list = document.getElementById('eventList');
+    let today = new Date();
+    
+    // 簡單生成當月日期 (1-30)
+    for(let i=1; i<=30; i++) {
+        let dateStr = `2026-06-${i.toString().padStart(2, '0')}`; // 模擬日期
+        let hasEvent = events.find(e => e.start === dateStr);
+        
+        grid.innerHTML += `
+            <div class="col-2 mb-2">
+                <div class="p-2 border rounded text-center ${hasEvent ? 'bg-warning bg-opacity-25 border-warning' : 'bg-white'}" style="height: 80px;">
+                    <small>${i}</small>
+                    ${hasEvent ? `<div class="badge bg-warning text-dark mt-1 text-truncate w-100">${hasEvent.title}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    list.innerHTML = events.map(e => `
+        <div class="p-3 bg-white rounded shadow-sm mb-2 border-start border-4 border-warning">
+            <div class="d-flex justify-content-between">
+                <strong>${e.title}</strong>
+                <small class="text-muted">${e.start}</small>
+            </div>
+            <small class="text-muted">${e.description}</small>
+        </div>
+    `).join('') || '<p class="text-muted text-center mt-5">尚無行程</p>';
+}
+
+function addEvent() {
+    let date = document.getElementById('evtDate').value;
+    let title = document.getElementById('evtTitle').value;
+    let desc = document.getElementById('evtDesc').value;
+    
+    fetch('/api/calendar/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ date, title, desc })
+    }).then(() => location.reload());
+}
+
+renderCalendar();
+</script>
+{% endblock %}

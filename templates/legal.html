@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="glass-card p-5">
+                
+                {% if type == 'terms' %}
+                <div class="text-center mb-4">
+                    <h3 class="fw-bold" style="color: #D4A5A5;">📜 服務條款與隱私權政策</h3>
+                    <p class="text-muted">生效日期：2026年1月1日</p>
+                </div>
+                
+                <div class="legal-content" style="max-height: 500px; overflow-y: auto;">
+                    <h5 class="fw-bold">1. 隱私權保護</h5>
+                    <p>本系統（Smart Style）非常重視您的隱私。我們承諾：</p>
+                    <ul>
+                        <li><strong>不進行人臉識別：</strong>我們僅分析臉部幾何特徵（如圓臉、方臉），絕不將您的照片用於身分識別或建立生物特徵資料庫。</li>
+                        <li><strong>資料刪除權：</strong>您隨時可以在「設定」中一鍵刪除所有個人資料與照片。</li>
+                        <li><strong>資料加密：</strong>所有上傳的照片均經過加密處理，並僅用於當次分析。</li>
+                    </ul>
+
+                    <h5 class="fw-bold mt-4">2. AI 免責聲明</h5>
+                    <p>本系統提供的所有穿搭建議、風格分析與體態評估，均由人工智慧演算法生成，<strong>僅供娛樂與參考，不具備任何醫療、心理諮商或專業鑑定的效力。</strong></p>
+
+                    <h5 class="fw-bold mt-4">3. 內容規範</h5>
+                    <p>禁止上傳任何色情、暴力或違法的圖片。我們保留隨時終止違規帳號的權利。</p>
+                </div>
+
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('register_page') }}" class="btn btn-primary rounded-pill px-4">我已了解</a>
+                </div>
+
+                {% elif type == 'wellness' %}
+                <div class="text-center mb-5">
+                    <h2 class="fw-bold text-success"><i class="fas fa-seedling me-2"></i>心靈休憩站</h2>
+                    <p class="lead text-muted">親愛的，您已經很棒了。</p>
+                </div>
+
+                <div class="alert alert-warning border-0 shadow-sm rounded-4 p-4 mb-4">
+                    <h5 class="fw-bold"><i class="fas fa-heart text-danger me-2"></i>我們檢測到您可能情緒低落</h5>
+                    <p class="mb-0">穿搭可以改變外表，但內心的平靜更重要。如果您感到痛苦、絕望，請不要獨自承受。</p>
+                </div>
+
+                <h5 class="fw-bold mb-3">📞 專業協助資源</h5>
+                <div class="list-group mb-4">
+                    <a href="tel:1925" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>衛福部安心專線</strong>
+                            <div class="small text-muted">24小時免費心理諮詢</div>
+                        </div>
+                        <span class="badge bg-success rounded-pill">1925</span>
+                    </a>
+                    <a href="tel:1980" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>張老師專線</strong>
+                            <div class="small text-muted">傾聽與陪伴</div>
+                        </div>
+                        <span class="badge bg-primary rounded-pill">1980</span>
+                    </a>
+                </div>
+
+                <div class="text-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary rounded-pill">返回首頁</a>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

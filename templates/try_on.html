@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <h2 class="text-center fw-bold mb-4" style="color: #D4A5A5;">👗 AI 虛擬克隆試穿</h2>
+    
+    <div class="row">
+        <div class="col-md-5">
+            <div class="glass-card text-center">
+                <h5>1. 您的 AI 模型</h5>
+                <img src="{{ url_for('static', filename=session.get('current_image_path', 'uploads/default.jpg')) }}" class="img-fluid rounded shadow mb-3" style="max-height: 400px;">
+                <p class="text-muted small">系統將使用這張照片進行合成</p>
+            </div>
+        </div>
+
+        <div class="col-md-2 d-flex flex-column justify-content-center align-items-center">
+            <i class="fas fa-plus fa-2x text-muted mb-2"></i>
+        </div>
+
+        <div class="col-md-5">
+            <div class="glass-card text-center">
+                <h5>2. 上傳想試穿的單品</h5>
+                <div class="upload-area border-dashed p-4 mb-3" onclick="document.getElementById('clothInput').click()" style="cursor: pointer; border: 2px dashed #ccc;">
+                    <i class="fas fa-tshirt fa-3x text-muted"></i>
+                    <p class="mb-0 mt-2">點擊上傳衣服照片</p>
+                </div>
+                <input type="file" id="clothInput" class="d-none" accept="image/*" onchange="tryOn(this)">
+                <div id="tryOnResult" class="d-none">
+                    <h5 class="text-success mt-3">✨ 試穿完成！</h5>
+                    <img id="resultImg" src="" class="img-fluid rounded shadow">
+                    <button class="btn btn-style mt-3 rounded-pill w-100">儲存穿搭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function tryOn(input) {
+    if(input.files && input.files[0]) {
+        let formData = new FormData();
+        formData.append('cloth_image', input.files[0]);
+        
+        // 顯示 Loading (省略實作細節，建議加個 Spinner)
+        
+        fetch('/api/try_on', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('resultImg').src = data.result_url;
+            document.getElementById('tryOnResult').classList.remove('d-none');
+        });
+    }
+}
+</script>
+{% endblock %}

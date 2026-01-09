@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+
+    <div class="text-center mb-5">
+        <h2 class="fw-bold" style="color: #D4A5A5;">🧪 風格實驗室</h2>
+        <p class="text-muted">探索、模擬、理解 AI 的決策過程</p>
+    </div>
+
+    <ul class="nav nav-pills mb-4 justify-content-center gap-2" id="pills-tab" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-xai">
+                <i class="fas fa-brain me-2"></i>透明化推薦 (XAI)
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-visual">
+                <i class="fas fa-eye me-2"></i>視覺錯覺模擬
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-stability">
+                <i class="fas fa-chart-line me-2"></i>風格穩定度
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-safe">
+                <i class="fas fa-shield-alt me-2"></i>安心穿搭
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <div class="tab-pane fade show active" id="tab-xai">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="glass-card">
+                        <h5 class="fw-bold mb-3 text-primary">💡 為什麼 AI 推薦這個？</h5>
+                        <p class="text-muted small">調整下方的權重滑動條，看看 AI 是如何根據不同因素做出決策的。</p>
+
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                <span>😶 臉型修飾</span> <span id="val-face">40%</span>
+                            </label>
+                            <input type="range" class="form-range" id="range-face" min="0" max="100" value="40" oninput="updateSliders()">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                <span>💃 身材比例</span> <span id="val-body">40%</span>
+                            </label>
+                            <input type="range" class="form-range" id="range-body" min="0" max="100" value="40" oninput="updateSliders()">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                <span>❤️ 個人偏好</span> <span id="val-pref">20%</span>
+                            </label>
+                            <input type="range" class="form-range" id="range-pref" min="0" max="100" value="20" oninput="updateSliders()">
+                        </div>
+
+                        <div class="alert alert-light border mt-3">
+                            <strong>🤖 AI 決策邏輯：</strong>
+                            <p class="mb-0 mt-2" id="xai-reason">這是一個完美的平衡選擇，兼顧了修飾性與個人風格。</p>
+                        </div>
+                    </div>
+
+                    <div class="glass-card border-danger">
+                        <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-thumbs-down me-2"></i>反向推薦：我不喜歡...</h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-danger rounded-pill" onclick="testReverse('skinny_jeans')">緊身褲</button>
+                            <button class="btn btn-outline-danger rounded-pill" onclick="testReverse('crop_top')">短版上衣</button>
+                            <button class="btn btn-outline-danger rounded-pill" onclick="testReverse('high_neck')">高領衫</button>
+                        </div>
+                        <div id="reverse-reason" class="mt-3 text-danger small fw-bold"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-visual">
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="glass-card text-center">
+                        <h5 class="fw-bold mb-4">腰線位置對比例的影響</h5>
+
+                        <div class="position-relative mx-auto bg-light border rounded" style="width: 200px; height: 400px; overflow: hidden;">
+                            <div id="sim-top" class="bg-primary opacity-75 position-absolute w-100" style="height: 40%; top: 0; transition: 0.3s;"></div>
+                            <div id="sim-bottom" class="bg-dark opacity-75 position-absolute w-100" style="height: 60%; bottom: 0; transition: 0.3s;"></div>
+                            <img src="https://i.imgur.com/7Z8Qy9M.png" class="position-absolute top-0 start-0 w-100 h-100" style="opacity: 0.3; object-fit: contain; pointer-events: none;" alt="Silhouette">
+                        </div>
+
+                        <div class="mt-4">
+                            <label class="form-label">調整腰線位置</label>
+                            <input type="range" class="form-range" min="20" max="60" value="40" oninput="updateWaist(this.value)">
+                            <div class="d-flex justify-content-between small text-muted">
+                                <span>低腰 (顯腰長)</span>
+                                <span>高腰 (顯腿長)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-stability">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="glass-card text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-chart-pie fa-4x text-info"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark">{{ stability }}</h3>
+                        <p class="text-muted mt-3">
+                            此指標分析您最近 5 次的穿搭偏好變異程度。<br>
+                            {% if stability == '風格穩定型 (Stable)' %}
+                                您很清楚自己適合什麼，繼續保持！
+                            {% elif stability == '多元嘗試期 (Versatile)' %}
+                                您正在勇於嘗試各種風格，這是好事！
+                            {% else %}
+                                讓我們多做幾次分析，找出您的命定風格吧。
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-safe">
+            <div class="row justify-content-center">
+                <div class="col-md-6 text-center">
+                    <div class="glass-card py-5">
+                        <i class="fas fa-feather-alt fa-3x text-success mb-3"></i>
+                        <h4 class="fw-bold">不想動腦？</h4>
+                        <p class="text-muted">點擊按鈕，AI 給您最安全、絕不出錯的舒適選擇。</p>
+                        <button class="btn btn-success btn-lg rounded-pill shadow px-5 mt-3" onclick="getSafeChoice()">
+                            幫我選一套
+                        </button>
+
+                        <div id="safe-result" class="mt-4 d-none fade-in">
+                            <div class="card border-success mb-3">
+                                <div class="card-header bg-success text-white fw-bold" id="safe-title"></div>
+                                <div class="card-body text-success">
+                                    <p class="card-text" id="safe-desc"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// 1. XAI 滑動條邏輯
+function updateSliders() {
+    let face = document.getElementById('range-face').value;
+    let body = document.getElementById('range-body').value;
+    let pref = document.getElementById('range-pref').value;
+
+    document.getElementById('val-face').innerText = face + '%';
+    document.getElementById('val-body').innerText = body + '%';
+    document.getElementById('val-pref').innerText = pref + '%';
+
+    // Debounce API call could be added here
+    fetch('/api/lab/recalc_xai', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ face: face, body: body, pref: pref })
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('xai-reason').innerText = data.reason;
+    });
+}
+
+// 2. 反向推薦
+function testReverse(type) {
+    fetch('/api/lab/reverse_rec', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ type: type })
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('reverse-reason').innerText = "🚫 " + data.explanation;
+    });
+}
+
+// 3. 視覺錯覺 (CSS)
+function updateWaist(val) {
+    // val 越小 = 上身越短 = 高腰
+    // val 越大 = 上身越長 = 低腰
+    // Input range is 20 (High) to 60 (Low)
+    document.getElementById('sim-top').style.height = val + '%';
+    document.getElementById('sim-bottom').style.height = (100 - val) + '%';
+}
+
+// 4. 安心穿搭
+function getSafeChoice() {
+    fetch('/api/lab/safe_choice', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        let res = document.getElementById('safe-result');
+        res.classList.remove('d-none');
+        document.getElementById('safe-title').innerText = data.data.title;
+        document.getElementById('safe-desc').innerText = data.data.desc;
+    });
+}
+</script>
+
+<style>
+    .fade-in { animation: fadeIn 0.5s; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+</style>
+{% endblock %}

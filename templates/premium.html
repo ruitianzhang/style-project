@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+
+    {# ======================================================== #}
+    {#  SCENARIO A: 已經是 VIP 會員 -> 顯示「尊榮功能儀表板」      #}
+    {# ======================================================== #}
+    {% if session.get('is_vip') %}
+
+        <div class="text-center mb-5">
+            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill mb-3">
+                <i class="fas fa-crown me-1"></i> VIP Member
+            </span>
+            <h2 class="fw-bold" style="color: #D4A5A5;">尊榮會員專區</h2>
+            <p class="text-muted">歡迎回來，{{ session.get('user_name') }}。這是您的專屬時尚控制台。</p>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="glass-card h-100 text-center hover-up border-primary border-top border-4">
+                    <div class="mb-3 text-primary"><i class="fas fa-robot fa-3x"></i></div>
+                    <h4 class="fw-bold">AI 形象顧問</h4>
+                    <p class="text-muted small">24小時在線的對話式穿搭顧問，隨時解答您的時尚困擾。</p>
+                    <a href="{{ url_for('chat_page') }}" class="btn btn-primary rounded-pill w-100 mt-3 shadow-sm">
+                        <i class="fas fa-comments me-2"></i> 開始諮詢
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 text-center hover-up border-danger border-top border-4">
+                    <div class="mb-3 text-danger"><i class="fas fa-file-pdf fa-3x"></i></div>
+                    <h4 class="fw-bold">專屬風格報告書</h4>
+                    <p class="text-muted small">彙整您的臉型、身型與色彩數據，生成精美的 PDF 報告。</p>
+                    <a href="/api/generate_pdf" class="btn btn-danger rounded-pill w-100 mt-3 shadow-sm">
+                        <i class="fas fa-download me-2"></i> 下載 PDF
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-card h-100 text-center hover-up border-success border-top border-4">
+                    <div class="mb-3 text-success"><i class="fas fa-calendar-alt fa-3x"></i></div>
+                    <h4 class="fw-bold">智能穿搭日曆</h4>
+                    <p class="text-muted small">規劃一週穿搭行程，結合天氣與場合的自動建議。</p>
+                    <a href="{{ url_for('calendar_page') }}" class="btn btn-success rounded-pill w-100 mt-3 shadow-sm">
+                        <i class="fas fa-calendar-check me-2"></i> 規劃行程
+                    </a>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="glass-card h-100 d-flex align-items-center p-4">
+                    <div class="me-4 text-info"><i class="fas fa-chart-pie fa-3x"></i></div>
+                    <div>
+                        <h5 class="fw-bold">年度風格回顧</h5>
+                        <p class="text-muted small mb-0">分析您過去一年的穿搭數據與喜好變化。</p>
+                    </div>
+                    <button class="btn btn-outline-info rounded-pill ms-auto px-4" onclick="alert('需累積一年數據才能解鎖年度報告！')">
+                        查看
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="glass-card h-100 d-flex align-items-center p-4">
+                    <div class="me-4 text-secondary"><i class="fas fa-shopping-bag fa-3x"></i></div>
+                    <div>
+                        <h5 class="fw-bold">品牌 VIP 導購</h5>
+                        <p class="text-muted small mb-0">AI 推薦適合您的合作品牌，並享有獨家折扣。</p>
+                    </div>
+                    <button class="btn btn-outline-dark rounded-pill ms-auto px-4" onclick="alert('即將導向合作品牌：Uniqlo, Zara, Gu...')">
+                        逛逛
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    {# ======================================================== #}
+    {#  SCENARIO B: 還不是 VIP -> 顯示「非侵入式行銷方案表」      #}
+    {# ======================================================== #}
+    {% else %}
+
+        <div class="text-center mb-5">
+            <span class="badge bg-secondary bg-opacity-10 text-secondary mb-3 rounded-pill px-3">Upgrade Plan</span>
+            <h2 class="fw-bold mb-3" style="color: #6c757d;">選擇最適合您的風格旅程</h2>
+            <p class="text-muted" style="max-width: 600px; margin: 0 auto;">
+                Smart Style 致力於讓每個人都能享受 AI 穿搭科技。
+                <br>基礎功能將<span class="text-dark fw-bold">永遠免費</span>，VIP 方案則提供更深度的個人化服務。
+            </p>
+        </div>
+
+        <div class="row justify-content-center g-4">
+            <div class="col-md-5 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm rounded-4 text-center p-4">
+                    <h4 class="fw-bold text-muted mb-4">🌱 探索版 (Free)</h4>
+                    <div class="display-6 fw-bold mb-4">$0 <small class="fs-6 text-muted">/ 月</small></div>
+
+                    <ul class="list-unstyled text-start mb-5 d-inline-block">
+                        <li class="mb-3"><i class="fas fa-check text-success me-2"></i>無限次臉型分析</li>
+                        <li class="mb-3"><i class="fas fa-check text-success me-2"></i>基礎身型診斷</li>
+                        <li class="mb-3"><i class="fas fa-check text-success me-2"></i>瀏覽社群穿搭</li>
+                        <li class="mb-3"><i class="fas fa-check text-success me-2"></i>每日天氣建議</li>
+                        <li class="mb-3 text-muted"><i class="fas fa-times me-2"></i>真人專家諮詢</li>
+                        <li class="mb-3 text-muted"><i class="fas fa-times me-2"></i>智慧衣櫃管理</li>
+                    </ul>
+
+                    <button class="btn btn-outline-secondary w-100 rounded-pill py-2" disabled>
+                        目前方案
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-5 col-lg-4">
+                <div class="card h-100 border-0 shadow rounded-4 text-center p-4 position-relative overflow-hidden">
+                    <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(135deg, rgba(212,165,165,0.1) 0%, rgba(255,255,255,0) 100%); pointer-events: none;"></div>
+                    <div class="badge bg-danger position-absolute top-0 end-0 m-3 rounded-pill px-3">Recommended</div>
+
+                    <h4 class="fw-bold mb-4" style="color: #D4A5A5;">👑 風格顧問 (VIP)</h4>
+                    <div class="display-6 fw-bold mb-4">NT$ 199 <small class="fs-6 text-muted">/ 月</small></div>
+
+                    <ul class="list-unstyled text-start mb-5 d-inline-block">
+                        <li class="mb-3"><i class="fas fa-check text-danger me-2"></i>包含所有免費功能</li>
+                        <li class="mb-3"><i class="fas fa-check text-danger me-2"></i><strong>AI 歷史紀錄回溯</strong></li>
+                        <li class="mb-3"><i class="fas fa-check text-danger me-2"></i><strong>解鎖真人專家諮詢</strong></li>
+                        <li class="mb-3"><i class="fas fa-check text-danger me-2"></i><strong>智慧穿搭日曆 (Calendar)</strong></li>
+                        <li class="mb-3"><i class="fas fa-check text-danger me-2"></i>優先體驗新功能 (如 AR 試穿)</li>
+                    </ul>
+
+                    <button class="btn btn-style w-100 rounded-pill py-2 shadow" onclick="upgradeVIP()">
+                        立即升級體驗
+                    </button>
+                    <div class="mt-3 text-muted small">
+                        <i class="fas fa-shield-alt me-1"></i> 隨時可取消，無隱藏費用
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mt-5 pt-4">
+            <div class="col-lg-8">
+                <h5 class="fw-bold text-center mb-4">常見問題</h5>
+                <div class="accordion accordion-flush" id="faqAccordion">
+                    <div class="accordion-item bg-transparent">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-transparent shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                Q: 我真的需要升級嗎？
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body text-muted">
+                                完全不需要！我們的免費版已經足夠解決 90% 的日常穿搭煩惱。VIP 主要是針對想要更有系統地管理衣櫃，或是需要專家一對一建議的使用者。
+                            </div>
+                        </div>
+                    </div>
+                    <div class="accordion-item bg-transparent">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-transparent shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                Q: 如果我不滿意可以退款嗎？
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body text-muted">
+                                當然。我們提供 7 天鑑賞期，只要您覺得不合適，可以隨時聯繫客服申請全額退款。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% endif %}
+
+</div>
+
+<script>
+function upgradeVIP() {
+    if(confirm('確認支付 NT$ 199 升級 VIP？(模擬付款流程)')) {
+        fetch('/api/upgrade_vip', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            alert('🎉 歡迎加入 VIP！您現在可以存取所有進階功能。');
+            location.reload();
+        });
+    }
+}
+</script>
+
+<style>
+    .hover-up { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .hover-up:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
+</style>
+{% endblock %}

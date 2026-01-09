@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        
+        <div class="glass-card p-4 fade-in">
+            
+            <div class="text-center mb-4">
+                <h3 class="fw-bold" style="color: #D4A5A5;">
+                    <i class="fas fa-camera-retro me-2"></i>發佈新穿搭
+                </h3>
+                <p class="text-muted small">分享您的風格，或是詢問大家的意見</p>
+            </div>
+            
+            <form action="{{ url_for('new_post') }}" method="POST" enctype="multipart/form-data" id="postForm" onsubmit="submitBtn.disabled = true; submitBtn.innerHTML='<i class=\'fas fa-spinner fa-spin me-2\'></i>發佈中...';">
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-muted">穿搭照片 <span class="text-danger">*</span></label>
+                    
+                    <div class="upload-area bg-white border rounded-4 d-flex flex-column align-items-center justify-content-center position-relative overflow-hidden" 
+                         onclick="document.getElementById('imgInput').click()"
+                         style="height: 300px; border: 2px dashed #ccc !important; cursor: pointer; transition: 0.3s;"
+                         id="dropZone">
+                        
+                        <div id="uploadPlaceholder" class="text-center text-muted">
+                            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-secondary"></i>
+                            <p class="mb-0">點擊或拖曳照片至此</p>
+                            <small class="text-muted opacity-75">支援 JPG, PNG</small>
+                        </div>
+
+                        <img id="preview" class="position-absolute w-100 h-100 d-none" style="object-fit: cover; top:0; left:0;">
+                    </div>
+                    
+                    <input type="file" name="image" id="imgInput" class="d-none" accept="image/*" onchange="previewImg(this)" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold text-muted">穿搭心得 / 提問內容 <span class="text-danger">*</span></label>
+                    <textarea name="content" class="form-control rounded-4 px-3 py-3" rows="4" placeholder="這套穿搭的靈感是... 或者詢問大家覺得適合什麼場合？" required style="resize: none;"></textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-muted">風格標籤</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0 rounded-start-pill text-muted"><i class="fas fa-hashtag"></i></span>
+                        <input type="text" name="tags" class="form-control border-start-0 rounded-end-pill" placeholder="例如：韓系, 約會, 顯瘦 (用逗號分隔)">
+                    </div>
+                </div>
+
+                <div class="bg-light bg-opacity-50 p-3 rounded-4 mb-4">
+                    
+                    <div class="form-check form-switch mb-3 d-flex align-items-center justify-content-between ps-0">
+                        <label class="form-check-label text-primary fw-bold cursor-pointer" for="qaSwitch">
+                            <i class="fas fa-poll me-2"></i>發起「適合我嗎？」投票
+                        </label>
+                        <input class="form-check-input ms-auto" type="checkbox" name="is_qa" id="qaSwitch" style="transform: scale(1.3);">
+                    </div>
+                    
+                    <hr class="text-muted opacity-25 my-2">
+
+                    <div class="form-check form-switch d-flex align-items-center justify-content-between ps-0">
+                        <label class="form-check-label text-muted cursor-pointer" for="anonSwitch">
+                            <i class="fas fa-user-secret me-2"></i>開啟匿名模式
+                        </label>
+                        <input class="form-check-input ms-auto" type="checkbox" name="is_anonymous" id="anonSwitch" style="transform: scale(1.3);">
+                    </div>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" id="submitBtn" class="btn btn-style btn-lg rounded-pill shadow">
+                        <i class="fas fa-paper-plane me-2"></i>發佈貼文
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function previewImg(input) {
+        if (input.files && input.files[0]) {
+            let r = new FileReader();
+            
+            r.onload = function(e) {
+                // 隱藏提示文字
+                document.getElementById('uploadPlaceholder').classList.add('d-none');
+                // 顯示圖片
+                let img = document.getElementById('preview');
+                img.src = e.target.result;
+                img.classList.remove('d-none');
+                
+                // 改變邊框樣式表示成功
+                document.getElementById('dropZone').style.border = '2px solid #D4A5A5';
+            }
+            
+            r.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // 簡單的拖曳效果 (Optional)
+    let dropZone = document.getElementById('dropZone');
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.backgroundColor = '#f8f9fa';
+            dropZone.style.borderColor = '#D4A5A5';
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.style.backgroundColor = 'white';
+            dropZone.style.borderColor = '#ccc';
+        }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        let dt = e.dataTransfer;
+        let files = dt.files;
+        document.getElementById('imgInput').files = files;
+        previewImg(document.getElementById('imgInput'));
+    }, false);
+</script>
+
+<style>
+    /* CSS 動畫：淡入效果 */
+    .fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* 讓 Switch 開關更好看 */
+    .form-check-input:checked {
+        background-color: #D4A5A5;
+        border-color: #D4A5A5;
+    }
+</style>
+{% endblock %}

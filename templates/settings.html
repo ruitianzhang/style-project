@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h2 class="fw-bold mb-4" style="color: #6c757d;">⚙️ 設定與隱私</h2>
+
+            <div class="glass-card mb-4 border-start border-4 border-info">
+                <h4 class="fw-bold mb-3 text-info"><i class="fas fa-history me-2"></i>資料保存期限</h4>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold">📸 照片保存策略</label>
+                    <p class="text-muted small">決定您上傳的分析照片要在伺服器保留多久。</p>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="photo_policy" id="policy_immediate" value="immediate" {{ 'checked' if user.photo_policy == 'immediate' }}>
+                        <label class="btn btn-outline-secondary" for="policy_immediate">用完即刪</label>
+
+                        <input type="radio" class="btn-check" name="photo_policy" id="policy_7" value="7_days" {{ 'checked' if user.photo_policy == '7_days' }}>
+                        <label class="btn btn-outline-secondary" for="policy_7">保留 7 天</label>
+
+                        <input type="radio" class="btn-check" name="photo_policy" id="policy_30" value="30_days" {{ 'checked' if user.photo_policy == '30_days' or not user.photo_policy }}>
+                        <label class="btn btn-outline-secondary" for="policy_30">保留 30 天</label>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded-3">
+                    <div>
+                        <h6 class="fw-bold mb-1 text-danger">⚠️ 緊急清除區</h6>
+                        <small class="text-muted">立即銷毀伺服器上所有屬於您的歷史分析照片。</small>
+                    </div>
+                    <button class="btn btn-danger btn-sm rounded-pill px-3" onclick="deleteAllPhotos()">
+                        <i class="fas fa-trash-alt me-1"></i> 一鍵清除所有影像
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card mb-4 border-start border-4 border-primary">
+                <h4 class="fw-bold mb-3 text-primary"><i class="fas fa-robot me-2"></i>AI 模型共創</h4>
+                <div class="form-check form-switch p-3 bg-light rounded-3">
+                    <input class="form-check-input" type="checkbox" id="aiConsentSwitch" {{ 'checked' if user.ai_training_consent }}>
+                    <label class="form-check-label fw-bold" for="aiConsentSwitch">允許匿名資料用於優化推薦模型</label>
+                    <p class="text-muted small mb-0 mt-2">
+                        開啟後，系統將以<span class="text-dark fw-bold">去識別化</span>的方式，使用您的身型數據（不含臉部照片）來優化推薦演算法的準確度。您可以隨時關閉此選項。
+                    </p>
+                </div>
+            </div>
+
+            <div class="glass-card mb-4 border-start border-4 border-secondary">
+                <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-door-open me-2"></i>資料權限與帳號管理</h4>
+
+                <div class="d-flex justify-content-between align-items-center mb-4 p-3 border rounded-3 bg-white">
+                    <div>
+                        <h6 class="fw-bold mb-1"><i class="fas fa-box-open me-2"></i>打包下載我的資料</h6>
+                        <p class="text-muted small mb-0">
+                            您的數據屬於您。匯出所有分析紀錄、穿搭日記與個人設定 (JSON 格式)。
+                        </p>
+                    </div>
+                    <a href="/api/download_my_data" class="btn btn-dark rounded-pill px-4">
+                        <i class="fas fa-download me-1"></i> 匯出
+                    </a>
+                </div>
+
+                <div class="accordion accordion-flush" id="deleteAccordion">
+                    <div class="accordion-item bg-transparent">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-danger bg-opacity-10 text-danger rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#deleteCollapse">
+                                <i class="fas fa-exclamation-triangle me-2"></i> 我想刪除帳號
+                            </button>
+                        </h2>
+                        <div id="deleteCollapse" class="accordion-collapse collapse" data-bs-parent="#deleteAccordion">
+                            <div class="accordion-body text-muted small pt-3">
+                                <p class="fw-bold text-dark mb-2">⚠️ 刪除帳號須知：</p>
+                                <ul class="mb-3 ps-3">
+                                    <li><strong>立即生效：</strong>您的登入權限將立即終止。</li>
+                                    <li><strong>資料移除：</strong>您的照片與個資將在 24 小時內從伺服器物理刪除。</li>
+                                    <li><strong>不綁架：</strong>我們不會保留您的任何備份。建議您先執行上方的「打包下載」。</li>
+                                </ul>
+                                <div class="text-end">
+                                    <button class="btn btn-danger rounded-pill px-4" onclick="deleteAccount()">
+                                        確認永久刪除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mt-5">
+                <button class="btn btn-style btn-lg rounded-pill px-5 shadow" onclick="saveSettings()">
+                    <i class="fas fa-save me-2"></i> 儲存所有變更
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+function saveSettings() {
+    // 取得選中的 policy
+    let policy = document.querySelector('input[name="photo_policy"]:checked').value;
+    let aiConsent = document.getElementById('aiConsentSwitch').checked;
+
+    fetch('/api/update_privacy_settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ photo_policy: policy, ai_consent: aiConsent })
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert(data.msg);
+    });
+}
+
+function deleteAllPhotos() {
+    if(!confirm("確定要永久刪除所有歷史照片嗎？此動作無法復原！(您的分析數據文字會保留)")) return;
+
+    fetch('/api/delete_all_photos', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        alert(data.msg);
+    });
+}
+
+function deleteAccount() {
+    // 雙重確認機制，防止誤刪
+    let check = prompt("請輸入 'DELETE' 以確認刪除帳號。此動作無法復原。");
+    if (check === 'DELETE') {
+        fetch('/api/delete_account', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            alert(data.msg);
+            window.location.href = "/";
+        });
+    } else {
+        if(check !== null) alert("輸入錯誤，取消刪除程序。");
+    }
+}
+</script>
+{% endblock %}

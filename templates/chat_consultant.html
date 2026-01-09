@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="glass-card p-0 overflow-hidden" style="height: 80vh; display: flex; flex-direction: column;">
+                
+                <div class="bg-primary text-white p-3 d-flex align-items-center">
+                    <i class="fas fa-robot fa-2x me-3"></i>
+                    <div>
+                        <h5 class="mb-0 fw-bold">AI 形象顧問</h5>
+                        <small class="opacity-75">Online • 隨時為您解答</small>
+                    </div>
+                </div>
+
+                <div id="chatBox" class="p-4 flex-grow-1 overflow-auto" style="background: rgba(255,255,255,0.5);">
+                    {% for log in logs %}
+                        <div class="d-flex mb-3 {{ 'justify-content-end' if log.sender == 'user' else 'justify-content-start' }}">
+                            <div class="p-3 rounded-4 shadow-sm" 
+                                 style="max-width: 75%; background: {{ '#D4A5A5' if log.sender == 'user' else 'white' }}; color: {{ 'white' if log.sender == 'user' else 'black' }}">
+                                {{ log.message }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="p-3 bg-white border-top d-flex gap-2">
+                    <input type="text" id="msgInput" class="form-control rounded-pill" placeholder="例如：明天面試該穿什麼？" onkeypress="handleEnter(event)">
+                    <button class="btn btn-primary rounded-circle" onclick="sendMsg()" style="width: 45px; height: 45px;">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function sendMsg() {
+    let input = document.getElementById('msgInput');
+    let msg = input.value.trim();
+    if (!msg) return;
+
+    // 顯示用戶訊息
+    appendMsg('user', msg);
+    input.value = '';
+
+    // 呼叫 API
+    fetch('/api/chat_response', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message: msg })
+    })
+    .then(r => r.json())
+    .then(data => {
+        appendMsg('ai', data.reply);
+    });
+}
+
+function appendMsg(sender, text) {
+    let box = document.getElementById('chatBox');
+    let div = document.createElement('div');
+    div.className = `d-flex mb-3 ${sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`;
+    div.innerHTML = `
+        <div class="p-3 rounded-4 shadow-sm" style="max-width: 75%; background: ${sender === 'user' ? '#D4A5A5' : 'white'}; color: ${sender === 'user' ? 'white' : 'black'}">
+            ${text}
+        </div>
+    `;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+}
+
+function handleEnter(e) { if (e.key === 'Enter') sendMsg(); }
+window.onload = () => { document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; }
+</script>
+{% endblock %}
