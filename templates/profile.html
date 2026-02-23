@@ -1,138 +1,349 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
+<style>
+    :root {
+        --morandi-pink: #D4A5A5; /* 核心莫蘭迪粉 */
+        --morandi-bg: #FDFBFA;  /* 柔和背景色 */
+        --glass-bg: rgba(255, 255, 255, 0.75);
+    }
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2 class="fw-bold" style="color: #D4A5A5;">個人詳細資料</h2>
-            <button type="submit" form="profileForm" class="btn btn-style px-4 rounded-pill">
-                <i class="fas fa-save me-2"></i>儲存設定
-            </button>
+    body { background-color: var(--morandi-bg); }
+
+    /* 頂部導航膠囊 */
+    .nav-capsule {
+        background: white; border-radius: 50px; padding: 5px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: inline-flex;
+        border: 1px solid rgba(212, 165, 165, 0.1);
+    }
+    .nav-capsule .nav-link {
+        border-radius: 50px; padding: 8px 25px; color: #888;
+        font-weight: 500; transition: 0.3s; text-decoration: none;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .nav-capsule .nav-link.active {
+        background-color: var(--morandi-pink); color: white !important;
+    }
+
+    /* 玻璃卡片 */
+    .glass-card-morandi {
+        background: var(--glass-bg); backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 30px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+    }
+
+    /* 表單元件 */
+    .form-control-morandi {
+        border-radius: 50px; background: rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid rgba(0,0,0,0.05) !important; padding: 10px 25px; transition: 0.3s;
+    }
+    .form-control-morandi:focus {
+        border-color: var(--morandi-pink) !important; box-shadow: 0 0 15px rgba(212, 165, 165, 0.1) !important;
+    }
+
+    .btn-pink {
+        background-color: var(--morandi-pink); color: white !important;
+        border-radius: 50px; border: none; padding: 12px 35px; font-weight: bold; transition: 0.3s;
+    }
+    .btn-pink:hover {
+        opacity: 0.9; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(212, 165, 165, 0.3);
+    }
+
+    .btn-check:checked + .btn-outline-pink {
+        background-color: var(--morandi-pink); color: white; border-color: var(--morandi-pink);
+    }
+    .btn-outline-pink {
+        border-color: #eee; color: #888; border-radius: 50px; transition: 0.2s;
+    }
+
+    .object-fit-cover { object-fit: cover; }
+    .text-pink { color: var(--morandi-pink) !important; }
+
+    /* 禁止選取樣式 */
+    .btn-disabled {
+        opacity: 0.3;
+        pointer-events: none;
+        filter: grayscale(1);
+    }
+
+    /* 最近檢測卡片樣式 */
+    .latest-report-card {
+        background: white; border-radius: 20px; padding: 25px;
+        border-left: 5px solid var(--morandi-pink);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.02);
+    }
+
+    .report-text {
+        white-space: pre-line;
+        line-height: 1.8;
+        color: #555;
+    }
+</style>
+
+<div class="container py-5">
+    <div class="text-center mb-5 fade-in">
+        <div class="nav-capsule shadow-sm">
+            <a href="{{ url_for('community_page') }}" class="nav-link">
+                <i class="fas fa-globe-asia"></i> 全球社群
+            </a>
+            <a href="{{ url_for('user_public_profile', user_id=session.get('user_id')) }}" class="nav-link">
+                <i class="fas fa-user-circle"></i> 個人主頁
+            </a>
+            <a href="#" class="nav-link active">
+                <i class="fas fa-cog"></i> 檔案設定
+            </a>
         </div>
+    </div>
 
-        <form method="POST" action="/profile" id="profileForm">
-
-            <div class="glass-card">
-                <h4 class="mb-4 border-bottom pb-2" style="color: #888;">基本資料</h4>
-
-                <div class="mb-3">
-                    <label class="form-label text-muted">Email (帳號)</label>
-                    <input type="text" class="form-control" value="{{ p.email }}" disabled style="background-color: #f0f0f0;">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="d-flex justify-content-between align-items-center mb-4 px-2 fade-in">
+                <div>
+                    <h3 class="fw-bold mb-1" style="color: var(--morandi-pink);">個人檔案</h3>
+                    <p class="text-muted small">完善設定後，AI 將提供更精準的風格識別與 3D 試衣建議</p>
                 </div>
-
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">暱稱</label>
-                        <input type="text" name="name" class="form-control" value="{{ p.name }}" required>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">年齡</label>
-                        <select name="age" class="form-select">
-                            <option value="" {% if not p.age %}selected{% endif %}>不公開</option>
-                            {% for i in range(16, 66) %}
-                            <option value="{{ i }}" {% if p.age == i %}selected{% endif %}>{{ i }} 歲</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">性別</label>
-                        <select name="gender" class="form-select">
-                            <option value="secret" {% if p.gender == 'secret' %}selected{% endif %}>不公開</option>
-                            <option value="female" {% if p.gender == 'female' %}selected{% endif %}>女性</option>
-                            <option value="male" {% if p.gender == 'male' %}selected{% endif %}>男性</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">身高 (cm)</label>
-                        <input type="number" name="height" class="form-control" value="{{ p.height }}">
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">體重 (kg)</label>
-                        <input type="number" name="weight" class="form-control" value="{{ p.weight }}">
-                    </div>
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <h4 class="mb-4 border-bottom pb-2" style="color: #888;">穿衣困擾 (AI 將針對此優化)</h4>
-                <div class="row">
-                    {% for issue in ['顯胖', '腿短', '顯肩寬', '小腹明顯', '駝背/圓肩', '假胯寬', '五五身'] %}
-                    <div class="col-md-4 mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="issues" value="{{ issue }}" id="issue_{{ loop.index }}"
-                                   {% if issue in p.issues %}checked{% endif %}>
-                            <label class="form-check-label" for="issue_{{ loop.index }}">{{ issue }}</label>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                <div class="mt-2">
-                    <input type="text" name="custom_issue" class="form-control" placeholder="其他困擾 (自填)...">
-                </div>
-            </div>
-
-            <div class="glass-card">
-                <h4 class="mb-4 border-bottom pb-2" style="color: #888;">風格與顏色偏好</h4>
-
-                <div class="mb-4">
-                    <label class="form-label fw-bold text-success"><i class="fas fa-heart me-2"></i>喜歡的風格</label>
-                    <div class="row">
-                        {% for style in ['日系甜美', '韓系簡約', '歐美個性', '法式慵懶', '運動休閒', '古著Vintage'] %}
-                        <div class="col-md-4 col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="style_like" value="{{ style }}"
-                                       {% if style in p.styles.like %}checked{% endif %}>
-                                <label class="form-check-label">{{ style }}</label>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="form-label fw-bold text-danger"><i class="fas fa-times-circle me-2"></i>不喜歡 (避雷)</label>
-                    <div class="row">
-                        {% for style in ['日系甜美', '韓系簡約', '歐美個性', '法式慵懶', '運動休閒', '龐克', '蘿莉塔'] %}
-                        <div class="col-md-4 col-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="style_dislike" value="{{ style }}"
-                                       {% if style in p.styles.dislike %}checked{% endif %}>
-                                <label class="form-check-label">{{ style }}</label>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <hr class="text-muted">
-
-                <div class="mb-2">
-                    <label class="form-label fw-bold">常去的場合</label>
-                    <div class="row">
-                        {% for occ in ['通勤(上班/上學)', '休閒(逛街/咖啡廳)', '約會', '運動健身', '派對/夜店', '度假/海邊'] %}
-                        <div class="col-md-6 mb-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="occasions" value="{{ occ }}"
-                                       {% if occ in p.occasions %}checked{% endif %}>
-                                <label class="form-check-label">{{ occ }}</label>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <div class="mb-5 text-center">
-                <button type="submit" class="btn btn-style btn-lg px-5 rounded-pill shadow">
-                    確認並儲存設定
+                <button type="submit" form="profileForm" class="btn btn-pink shadow-sm">
+                    <i class="fas fa-save me-2"></i>儲存變更
                 </button>
             </div>
 
-        </form>
+            <form method="POST" action="/profile" id="profileForm" enctype="multipart/form-data">
+
+                <div class="glass-card-morandi p-4 p-md-5 mb-4 shadow-sm">
+                    <div class="row align-items-center">
+                        <div class="col-md-4 text-center border-end border-light">
+                            <div class="position-relative d-inline-block">
+                                <div class="rounded-circle overflow-hidden shadow-sm border border-4 border-white mx-auto" style="width: 160px; height: 160px; background: white;">
+                                    {% if p.avatar %}
+                                        {% if p.avatar.startswith('http') %}
+                                            <img src="{{ p.avatar }}" class="w-100 h-100 object-fit-cover" id="avatarPreview">
+                                        {% else %}
+                                            <img src="{{ url_for('static', filename=p.avatar.replace('static/', '')) }}" class="w-100 h-100 object-fit-cover" id="avatarPreview">
+                                        {% endif %}
+                                    {% else %}
+                                        <img src="{{ url_for('static', filename='default_avatar.png') }}" class="w-100 h-100 object-fit-cover" id="avatarPreview">
+                                    {% endif %}
+                                </div>
+                                <label for="avatarUpload" class="position-absolute bottom-0 end-0 bg-white text-pink rounded-circle shadow p-2 cursor-pointer" style="width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff;">
+                                    <i class="fas fa-camera"></i>
+                                </label>
+                                <input type="file" name="avatar" id="avatarUpload" class="d-none" accept="image/*" onchange="previewAvatar(this)">
+                            </div>
+                            <div class="mt-3">
+                                <h5 class="fw-bold text-dark mb-0">{{ p.name }}</h5>
+                                <small class="text-muted">{{ p.email }}</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-8 ps-md-5">
+                            <h6 class="fw-bold text-pink mb-4"><i class="fas fa-user-tag me-2"></i>基本資料設定</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="small text-muted mb-1">顯示暱稱</label>
+                                    <input type="text" name="name" class="form-control form-control-morandi" value="{{ p.name }}" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small text-muted mb-1">真實歲數 (Age)</label>
+                                    <input type="number" name="age" class="form-control form-control-morandi" value="{{ p.age }}" placeholder="25">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted mb-1">性別</label>
+                                    <select name="gender" class="form-select form-control-morandi">
+                                        <option value="secret" {% if p.gender == 'secret' %}selected{% endif %}>不公開</option>
+                                        <option value="female" {% if p.gender == 'female' %}selected{% endif %}>女性</option>
+                                        <option value="male" {% if p.gender == 'male' %}selected{% endif %}>男性</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted mb-1">身高 (cm)</label>
+                                    <input type="number" name="height" class="form-control form-control-morandi" value="{{ p.height }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="small text-muted mb-1">體重 (kg)</label>
+                                    <input type="number" name="weight" class="form-control form-control-morandi" value="{{ p.weight }}">
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="small text-muted mb-1">身形類型 (Body Type)</label>
+                                    <select name="body_type" class="form-select form-control-morandi">
+                                        <option value="A" {% if p.body_type == 'A' %}selected{% endif %}>梨形 (A)</option>
+                                        <option value="X" {% if p.body_type == 'X' %}selected{% endif %}>沙漏 (X)</option>
+                                        <option value="H" {% if p.body_type == 'H' %}selected{% endif %}>矩形 (H)</option>
+                                        <option value="O" {% if p.body_type == 'O' %}selected{% endif %}>圓形 (O)</option>
+                                        <option value="Y" {% if p.body_type == 'Y' %}selected{% endif %}>草莓 (Y)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card-morandi p-4 p-md-5 mb-4 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h6 class="fw-bold text-pink mb-0"><i class="fas fa-sparkles me-2"></i>最近一次 AI 檢測結果</h6>
+                        <a href="{{ url_for('history_page') }}" class="btn btn-sm btn-outline-pink rounded-pill px-4">
+                            前往歷史紀錄 <i class="fas fa-chevron-right ms-1"></i>
+                        </a>
+                    </div>
+
+                    {% if p.latest_report %}
+                    <div class="latest-report-card">
+                        <div class="row align-items-center">
+                            <div class="col-md-3 text-center mb-3 mb-md-0">
+                                <div class="rounded-4 overflow-hidden shadow-sm" style="height: 200px; background: #eee;">
+                                    {% if p.latest_report.image_url %}
+                                        <img src="{{ url_for('static', filename=p.latest_report.image_url.replace('static/', '')) }}" class="w-100 h-100 object-fit-cover">
+                                    {% else %}
+                                        <div class="d-flex align-items-center justify-content-center h-100 text-muted small">尚未生成照片</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-9 ps-md-4">
+                                <div class="d-flex align-items-center mb-2">
+                                    <span class="badge bg-light text-pink px-3 rounded-pill">檢測日期：{{ p.latest_report.date }}</span>
+                                </div>
+                                <p class="report-text small mb-0">
+                                    {{ p.latest_report.advice }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 border rounded-4 border-dashed bg-light opacity-75">
+                        <i class="fas fa-camera-retro fa-2x mb-2 text-muted"></i>
+                        <p class="text-muted small mb-0">目前尚無檢測紀錄，快去「3D 實驗室」試試吧！</p>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="glass-card-morandi p-4 p-md-5 mb-4 shadow-sm">
+                    <h6 class="fw-bold text-pink mb-4 border-bottom pb-2">
+                        <i class="fas fa-heart-broken me-2"></i>風格喜好相互識別
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <label class="fw-bold text-success mb-3"><i class="fas fa-plus-circle me-1"></i> 喜歡的風格</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for cat, data in taxonomy.items() if cat != 'Occasion' %}
+                                    {% for key, val in data.options.items() %}
+                                    {% set clean_val = val.split(' (')[0] if ' (' in val else val %}
+                                    <input type="checkbox" class="btn-check style-like-check" name="style_likes"
+                                           value="{{ clean_val }}" id="like_{{ cat }}_{{ key }}"
+                                           {% if clean_val in p.likes %}checked{% endif %}
+                                           onchange="handleStyleLogic('{{ clean_val }}', 'like')">
+                                    <label class="btn btn-outline-pink btn-sm px-3" for="like_{{ cat }}_{{ key }}" id="label_like_{{ clean_val }}">
+                                        {{ clean_val }}
+                                    </label>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-4 border-start border-light ps-md-4">
+                            <label class="fw-bold text-danger mb-3"><i class="fas fa-minus-circle me-1"></i> 不喜歡的風格</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for cat, data in taxonomy.items() if cat != 'Occasion' %}
+                                    {% for key, val in data.options.items() %}
+                                    {% set clean_val = val.split(' (')[0] if ' (' in val else val %}
+                                    <input type="checkbox" class="btn-check style-dislike-check" name="style_dislikes"
+                                           value="{{ clean_val }}" id="dis_{{ cat }}_{{ key }}"
+                                           {% if clean_val in p.dislikes %}checked{% endif %}
+                                           onchange="handleStyleLogic('{{ clean_val }}', 'dislike')">
+                                    <label class="btn btn-outline-secondary btn-sm px-3" for="dis_{{ cat }}_{{ key }}" id="label_dis_{{ clean_val }}">
+                                        {{ clean_val }}
+                                    </label>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card-morandi p-4 p-md-5 mb-5 shadow-sm">
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <label class="fw-bold text-dark mb-3">顏色與場合偏好</label>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                {% for color in ['大地色', '莫蘭迪色', '黑白灰', '馬卡龍色', '高飽和撞色'] %}
+                                <input type="checkbox" class="btn-check" name="color_prefs" value="{{ color }}" id="color_{{ loop.index }}"
+                                       {% if color in p.colors %}checked{% endif %}>
+                                <label class="btn btn-outline-pink btn-sm px-3" for="color_{{ loop.index }}">{{ color }}</label>
+                                {% endfor %}
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for occ in ['通勤', '約會', '休閒', '出遊', '派對'] %}
+                                <input type="checkbox" class="btn-check" name="occasion_prefs" value="{{ occ }}" id="occ_{{ loop.index }}"
+                                       {% if occ in p.occasions %}checked{% endif %}>
+                                <label class="btn btn-outline-pink btn-sm px-3" for="occ_{{ loop.index }}">{{ occ }}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-4 border-start border-light ps-md-4">
+                             <label class="fw-bold text-dark mb-3">材質與圖案關鍵字</label>
+                             <div class="row g-2">
+                                <div class="col-12 mb-2">
+                                    <input type="text" name="fabrics" class="form-control form-control-morandi"
+                                           placeholder="偏好材質 (如：真絲、針織...)" value="{{ p.fabrics }}">
+                                </div>
+                                <div class="col-12">
+                                    <input type="text" name="patterns" class="form-control form-control-morandi"
+                                           placeholder="偏好圖案 (如：千鳥格、碎花...)" value="{{ p.patterns }}">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mb-5">
+                    <button type="submit" class="btn btn-pink btn-lg px-5 shadow">確認並更新個人檔案</button>
+                </div>
+
+            </form>
+        </div>
     </div>
 </div>
+
+<script>
+    // 1. 風格相互識別邏輯
+    function handleStyleLogic(val, type) {
+        if (type === 'like') {
+            const dislikeInput = document.querySelector(`.style-dislike-check[value="${val}"]`);
+            const dislikeLabel = document.getElementById(`label_dis_${val}`);
+            const likeInput = document.querySelector(`.style-like-check[value="${val}"]`);
+
+            if (likeInput && likeInput.checked) {
+                if(dislikeInput) dislikeInput.checked = false;
+                if(dislikeLabel) dislikeLabel.classList.add('btn-disabled');
+            } else {
+                if(dislikeLabel) dislikeLabel.classList.remove('btn-disabled');
+            }
+        } else {
+            const likeInput = document.querySelector(`.style-like-check[value="${val}"]`);
+            const likeLabel = document.getElementById(`label_like_${val}`);
+            const dislikeInput = document.querySelector(`.style-dislike-check[value="${val}"]`);
+
+            if (dislikeInput && dislikeInput.checked) {
+                if(likeInput) likeInput.checked = false;
+                if(likeLabel) likeLabel.classList.add('btn-disabled');
+            } else {
+                if(likeLabel) likeLabel.classList.remove('btn-disabled');
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.style-like-check:checked').forEach(el => handleStyleLogic(el.value, 'like'));
+        document.querySelectorAll('.style-dislike-check:checked').forEach(el => handleStyleLogic(el.value, 'dislike'));
+    });
+
+    // 2. 頭像即時預覽
+    function previewAvatar(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('avatarPreview').src = e.target.result;
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+</script>
 {% endblock %}

@@ -73,4 +73,239 @@ function appendMsg(sender, text) {
 function handleEnter(e) { if (e.key === 'Enter') sendMsg(); }
 window.onload = () => { document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; }
 </script>
+{% endblock %}{% extends "base.html" %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<div class="container py-3 h-100">
+    <div class="row justify-content-center h-100">
+        <div class="col-md-8 col-lg-6 h-100">
+
+            <div class="glass-card p-0 overflow-hidden shadow-lg d-flex flex-column h-100" style="border-radius: 24px; height: 85vh !important;">
+
+                <div class="p-3 d-flex align-items-center text-white"
+                     style="background: linear-gradient(135deg, var(--primary-color), #c08e8e);">
+                    <div class="position-relative">
+                        <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px;">
+                            <i class="fas fa-robot fa-lg"></i>
+                        </div>
+                        <span class="position-absolute bottom-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle"></span>
+                    </div>
+                    <div class="ms-3">
+                        <h5 class="mb-0 fw-bold">AI 形象顧問</h5>
+                        <small class="opacity-90" style="font-size: 0.85rem;">
+                            <i class="fas fa-sparkles me-1"></i>已載入您的身形數據
+                        </small>
+                    </div>
+                </div>
+
+                <div id="chatBox" class="p-4 flex-grow-1 overflow-auto custom-scrollbar" style="background: rgba(255,255,255,0.6);">
+
+                    <div class="d-flex mb-4 justify-content-start fade-in">
+                        <div class="me-2 mt-1">
+                            <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 35px; height: 35px;">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-4 shadow-sm bg-white text-dark message-bubble">
+                            <p class="mb-0">嗨 {{ session['user_name'] }}！我是您的專屬 AI 造型師 ✨<br>
+                            我看過您的分析報告了，今天想聊聊什麼場合的穿搭呢？</p>
+                        </div>
+                    </div>
+
+                    {% for log in logs %}
+                        <div class="d-flex mb-4 {{ 'justify-content-end' if log.sender == 'user' else 'justify-content-start' }}">
+                            {% if log.sender == 'ai' %}
+                            <div class="me-2 mt-1">
+                                <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 35px; height: 35px;"><i class="fas fa-robot"></i></div>
+                            </div>
+                            {% endif %}
+
+                            <div class="p-3 rounded-4 shadow-sm message-bubble"
+                                 style="max-width: 85%; background: {{ 'var(--primary-color)' if log.sender == 'user' else 'white' }}; color: {{ 'white' if log.sender == 'user' else '#444' }}">
+                                <div class="markdown-content">{{ log.message }}</div>
+                            </div>
+                        </div>
+                    {% endfor %}
+
+                    <div id="typingIndicator" class="d-none mb-4 justify-content-start">
+                        <div class="ms-5 p-3 rounded-4 bg-white shadow-sm" style="width: fit-content;">
+                            <div class="typing-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-white border-top">
+
+                    <div class="d-flex gap-2 overflow-auto mb-3 pb-1" style="white-space: nowrap; scrollbar-width: none;">
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('明天要去面試，該怎麼穿？')">💼 面試穿搭</button>
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('週末要去約會，想要溫柔一點的風格')">🌹 約會建議</button>
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('最近天氣變冷了，有推薦的穿法嗎？')">❄️ 天氣對策</button>
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('我的身形適合穿寬褲嗎？')">👖 身形修飾</button>
+                    </div>
+
+                    <div class="input-group">
+                        <input type="text" id="msgInput" class="form-control rounded-pill bg-light border-0 py-3 px-4 shadow-inner"
+                               placeholder="輸入您的問題..." onkeypress="handleEnter(event)" style="box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);">
+
+                        <button class="btn btn-primary rounded-circle ms-2 shadow-sm d-flex align-items-center justify-content-center send-btn"
+                                onclick="sendMsg()" style="width: 50px; height: 50px; transition: transform 0.2s;">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 訊息氣泡優化 */
+    .message-bubble {
+        position: relative;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+
+    /* 讓 Markdown 樣式更漂亮 */
+    .message-bubble h3 { font-size: 1.1rem; font-weight: bold; margin-top: 10px; margin-bottom: 5px; }
+    .message-bubble ul { padding-left: 20px; margin-bottom: 5px; }
+    .message-bubble p { margin-bottom: 0.5rem; }
+    .message-bubble p:last-child { margin-bottom: 0; }
+    .message-bubble strong { font-weight: 700; }
+
+    /* 輸入動畫 (Typing Dots) */
+    .typing-dots span {
+        display: inline-block;
+        width: 8px; height: 8px;
+        background-color: #bbb;
+        border-radius: 50%;
+        margin: 0 3px;
+        animation: typing 1.4s infinite ease-in-out both;
+    }
+    .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+    /* 按鈕動效 */
+    .send-btn:hover { transform: scale(1.05); background-color: var(--primary-hover) !important; }
+    .send-btn:active { transform: scale(0.95); }
+
+    .chip-btn:hover { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+
+    /* 隱藏 Scrollbar 但保留功能 */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 10px; }
+</style>
+
+<script>
+// 初始化 Markdown 解析器
+function renderMarkdown(text) {
+    // 簡單的配置，讓換行變成 <br>
+    marked.setOptions({ breaks: true });
+    return marked.parse(text);
+}
+
+// 頁面載入時渲染歷史訊息的 Markdown
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.markdown-content').forEach(el => {
+        el.innerHTML = renderMarkdown(el.innerText);
+    });
+    scrollToBottom();
+});
+
+// 點擊快捷按鈕
+function fillInput(text) {
+    const input = document.getElementById('msgInput');
+    input.value = text;
+    input.focus();
+}
+
+// 發送訊息主邏輯
+function sendMsg() {
+    let input = document.getElementById('msgInput');
+    let msg = input.value.trim();
+    if (!msg) return;
+
+    // 1. 顯示用戶訊息
+    appendMsg('user', msg);
+    input.value = '';
+    input.focus();
+
+    // 2. 顯示「AI 正在輸入...」
+    showTyping(true);
+
+    // 3. 呼叫後端 API
+    fetch('/api/chat_response', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message: msg })
+    })
+    .then(r => r.json())
+    .then(data => {
+        showTyping(false);
+        // 4. 顯示 AI 回覆 (支援 Markdown)
+        appendMsg('ai', data.reply);
+    })
+    .catch(() => {
+        showTyping(false);
+        appendMsg('ai', "⚠️ 抱歉，連線出了點問題，請稍後再試。");
+    });
+}
+
+// 動態新增訊息到畫面
+function appendMsg(sender, text) {
+    let box = document.getElementById('chatBox');
+    let div = document.createElement('div');
+
+    // 設定頭像與對話框樣式
+    let avatarHTML = sender === 'ai' ?
+        `<div class="me-2 mt-1"><div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 35px; height: 35px;"><i class="fas fa-robot"></i></div></div>` : '';
+
+    let bubbleStyle = sender === 'user' ?
+        `background: var(--primary-color); color: white; margin-left: auto; border-bottom-right-radius: 4px;` :
+        `background: white; color: #444; margin-right: auto; border-bottom-left-radius: 4px;`;
+
+    // 如果是 AI，需要解析 Markdown；如果是用戶，直接顯示純文字(防XSS)
+    let contentHTML = sender === 'ai' ? renderMarkdown(text) : text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    div.className = `d-flex mb-4 ${sender === 'user' ? 'justify-content-end' : 'justify-content-start'} fade-in`;
+    div.innerHTML = `
+        ${avatarHTML}
+        <div class="p-3 rounded-4 shadow-sm message-bubble" style="max-width: 85%; ${bubbleStyle}">
+            ${contentHTML}
+        </div>
+    `;
+
+    // 插入在 typing indicator 之前
+    let typingEl = document.getElementById('typingIndicator');
+    box.insertBefore(div, typingEl);
+
+    scrollToBottom();
+}
+
+// 切換輸入動畫顯示
+function showTyping(show) {
+    let el = document.getElementById('typingIndicator');
+    if(show) {
+        el.classList.remove('d-none');
+        el.classList.add('d-flex');
+        scrollToBottom();
+    } else {
+        el.classList.add('d-none');
+        el.classList.remove('d-flex');
+    }
+}
+
+// 捲動到底部
+function scrollToBottom() {
+    let box = document.getElementById('chatBox');
+    box.scrollTop = box.scrollHeight;
+}
+
+function handleEnter(e) { if (e.key === 'Enter') sendMsg(); }
+</script>
 {% endblock %}

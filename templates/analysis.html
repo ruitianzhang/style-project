@@ -1,63 +1,214 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    /* =========================================
+       🎨 1. 配色系統 (莫蘭迪粉 Main / 科技藍 Accent)
+       ========================================= */
+    :root {
+        --primary-pink: #D4A5A5;
+        --primary-pink-hover: #c08e8e;
+        --tech-blue: #6c8ebf;
+        --tech-blue-hover: #5a7cad;
+        --input-bg: #f8f9fa;
+        --glass-bg: rgba(255, 255, 255, 0.98);
+        --glass-border: rgba(255, 255, 255, 0.9);
+    }
+
+    /* =========================================
+       ✨ 2. 進度條 & 步驟指示
+       ========================================= */
+    .progress-container { position: relative; margin: 2rem 1rem 4rem 1rem; padding: 0 10px; user-select: none; }
+    .progress { height: 6px; background-color: #e9ecef; border-radius: 10px; overflow: visible; }
+    .progress-bar-animated { background-color: var(--primary-pink); transition: width 0.6s ease; border-radius: 10px; box-shadow: 0 0 8px rgba(212, 165, 165, 0.6); }
+    .step-circle { width: 3rem; height: 3rem; border-radius: 50%; background-color: #fff; border: 3px solid #dee2e6; color: #adb5bd; display: flex; align-items: center; justify-content: center; position: absolute; top: 50%; transform: translate(-50%, -50%); font-weight: 700; transition: all 0.4s ease; z-index: 2; }
+    .step-circle.active { background-color: var(--primary-pink); border-color: var(--primary-pink); color: white; transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 0 5px rgba(212, 165, 165, 0.25); }
+    .step-circle.completed { background-color: var(--primary-pink); border-color: var(--primary-pink); color: white; }
+
+    /* =========================================
+       🛠️ 3. 卡片與容器
+       ========================================= */
+    .glass-card { background: var(--glass-bg); backdrop-filter: blur(12px); border: 1px solid var(--glass-border); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05); border-radius: 24px; padding: 3rem; margin-bottom: 6rem !important; }
+    .camera-frame { position: relative; background: #000; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid #eee; }
+
+    /* =========================================
+       🔘 4. 按鈕優化
+       ========================================= */
+    .btn-tech {
+        background-color: transparent; color: var(--tech-blue); border: 2px solid var(--tech-blue);
+        padding: 0.6rem 1.5rem; font-weight: 600; transition: all 0.3s ease;
+    }
+    .btn-tech:hover {
+        background-color: var(--tech-blue); color: white; box-shadow: 0 4px 12px rgba(108, 142, 191, 0.3);
+    }
+    .btn-primary {
+        background-color: var(--primary-pink) !important; border-color: var(--primary-pink) !important;
+        box-shadow: 0 4px 15px rgba(212, 165, 165, 0.35); font-weight: 700; padding: 0.8rem 2.5rem; letter-spacing: 1px;
+        color: white !important; transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+        background-color: var(--primary-pink-hover) !important; transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(212, 165, 165, 0.5);
+    }
+
+    /* 視圖切換器 */
+    .view-toggle {
+        position: absolute; top: 15px; right: 15px; z-index: 20;
+        background: rgba(255,255,255,0.9); padding: 4px; border-radius: 50px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; gap: 2px;
+    }
+    .view-toggle .btn-toggle {
+        border: none; background: transparent; color: #999; font-size: 0.85rem; font-weight: 700;
+        padding: 4px 12px; border-radius: 20px; transition: 0.3s;
+    }
+    .view-toggle .btn-toggle.active {
+        background: var(--tech-blue); color: white; box-shadow: 0 2px 8px rgba(108, 142, 191, 0.4);
+    }
+
+    /* 其他樣式 */
+    .form-floating > .form-control:focus { border-color: var(--primary-pink); box-shadow: 0 0 0 4px rgba(212, 165, 165, 0.15); }
+    .text-tech { color: var(--tech-blue) !important; }
+    .text-primary { color: var(--primary-pink) !important; }
+
+    .face-thumb {
+        width: 60px; height: 60px; border-radius: 50%; object-fit: cover;
+        border: 3px solid #eee; transition: all 0.3s;
+    }
+    .face-thumb.captured { border-color: var(--primary-pink); box-shadow: 0 4px 10px rgba(212, 165, 165, 0.3); }
+
+    .color-swatch { width: 35px; height: 35px; border-radius: 50%; display: inline-block; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-right: -8px; transition: transform 0.2s; }
+    .color-swatch:hover { transform: scale(1.2); z-index: 10; }
+
+    .scan-beam-vertical { position: absolute; top: 0; left: 0; width: 2px; height: 100%; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(255,255,255,0.5); animation: scanX 2s infinite ease-in-out; z-index: 10; opacity: 0.6; }
+    @keyframes scanX { 0% {left:0;} 50% {left:100%;} 100% {left:0;} }
+
+    .transition-icon { transition: transform 0.3s ease; }
+    [aria-expanded="true"] .transition-icon { transform: rotate(180deg); }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-lg-10">
 
-        <div class="position-relative m-4">
-            <div class="progress" style="height: 2px;">
-                <div class="progress-bar bg-danger" role="progressbar" style="width: 33%;" id="progressBar"></div>
+        <div class="progress-container">
+            <div class="progress">
+                <div class="progress-bar progress-bar-animated" role="progressbar" style="width: 0%;" id="progressBar"></div>
             </div>
-            <div class="position-absolute top-0 start-0 translate-middle btn btn-sm btn-danger rounded-pill" style="width: 2rem; height:2rem;">1</div>
-            <div class="position-absolute top-0 start-50 translate-middle btn btn-sm btn-secondary rounded-pill" style="width: 2rem; height:2rem;" id="step2Indicator">2</div>
-            <div class="position-absolute top-0 start-100 translate-middle btn btn-sm btn-secondary rounded-pill" style="width: 2rem; height:2rem;" id="step3Indicator">3</div>
+            <div class="step-circle active" style="left: 0%;" id="step1Indicator">1</div>
+            <div class="step-circle" style="left: 50%;" id="step2Indicator">2</div>
+            <div class="step-circle" style="left: 100%;" id="step3Indicator">3</div>
         </div>
 
         <div id="step1" class="glass-card fade-in">
-            <h3 class="fw-bold mb-4" style="color: #D4A5A5;"><i class="fas fa-camera me-2"></i>Step 1. 臉型與五官分析</h3>
-            <div class="row align-items-center">
-                <div class="col-md-6 text-center border-end">
+            <div class="text-center mb-5">
+                <span class="badge rounded-pill bg-light text-primary mb-2 px-3 py-2 border">PHASE 01</span>
+                <h3 class="fw-bold" style="color: #4a4a4a;">AI 臉部與膚色檢測</h3>
+                <p class="text-muted small">請確保臉部光線充足，無遮擋物，以利膚色分析</p>
+            </div>
 
-                    <div class="position-relative mb-3 bg-light rounded-3 overflow-hidden d-flex justify-content-center align-items-center" style="height: 300px; border: 2px dashed #ccc;">
-                        <div id="placeholderText" class="text-muted">
-                            <i class="fas fa-user-circle fa-4x mb-2"></i>
-                            <p>請選擇上傳或拍照</p>
+            <div class="row g-5">
+                <div class="col-md-6 border-end border-light">
+
+                    <div class="d-flex justify-content-center mb-4">
+                        <div class="btn-group shadow-sm rounded-pill p-1 bg-light" role="group">
+                            <input type="radio" class="btn-check" name="faceMode" id="modeFront" checked onclick="switchCaptureMode('front')">
+                            <label class="btn btn-sm btn-outline-secondary border-0 rounded-pill px-4" for="modeFront"><i class="fas fa-user me-2"></i>正臉</label>
+
+                            <input type="radio" class="btn-check" name="faceMode" id="modeSide" onclick="switchCaptureMode('side')">
+                            <label class="btn btn-sm btn-outline-secondary border-0 rounded-pill px-4" for="modeSide"><i class="fas fa-user-tag me-2"></i>側臉</label>
                         </div>
-                        <video id="cameraStream" autoplay playsinline class="w-100 h-100 d-none" style="object-fit: cover;"></video>
-                        <img id="imagePreview" src="" class="w-100 h-100 d-none" style="object-fit: cover;">
-                        <canvas id="canvas" class="d-none"></canvas>
                     </div>
 
-                    <div class="d-flex gap-2 justify-content-center">
-                        <button class="btn btn-outline-secondary rounded-pill" onclick="document.getElementById('imageInput').click()">
-                            <i class="fas fa-upload me-1"></i> 上傳照片
-                        </button>
-                        <input type="file" id="imageInput" class="d-none" accept="image/*" onchange="handleFileUpload(this)">
+                    <div class="camera-frame mb-4 d-flex justify-content-center align-items-center" style="height: 420px;">
 
-                        <button id="btnOpenCamera" class="btn btn-outline-danger rounded-pill" onclick="startCamera()">
-                            <i class="fas fa-video me-1"></i> 開啟相機
+                        <div id="viewToggleBar" class="view-toggle d-none">
+                            <button class="btn-toggle" onclick="toggleFaceView('original')">原圖</button>
+                            <button class="btn-toggle" onclick="toggleFaceView('2d')">2D</button>
+                            <button class="btn-toggle active" onclick="toggleFaceView('3d')">3D</button>
+                        </div>
+
+                        <div id="facePlaceholder" class="text-secondary d-flex flex-column align-items-center z-1">
+                            <div class="mb-3 p-4 rounded-circle border border-secondary border-opacity-10 bg-light">
+                                <i class="fas fa-camera fa-3x opacity-25"></i>
+                            </div>
+                            <h6 class="fw-bold text-light ls-1" id="scanTitle">準備掃描正臉</h6>
+                        </div>
+
+                        <video id="faceVideo" autoplay playsinline class="w-100 h-100 d-none" style="object-fit: cover; transform: scaleX(-1);"></video>
+
+                        <div id="facePreviewContainer" class="w-100 h-100 d-none d-flex justify-content-center align-items-center bg-black position-absolute top-0 start-0" style="z-index: 5;">
+                            <img id="facePreview" class="img-fluid" style="max-height: 100%; object-fit: contain;">
+                        </div>
+
+                        <div id="faceScanOverlay" class="face-id-wrapper d-none"><div class="face-id-circle"><div class="face-id-grid"></div><div class="face-id-radar"></div></div></div>
+
+                        <div id="face3dContainer" class="d-none w-100 h-100 position-absolute bg-black" style="z-index: 6;"></div>
+
+                        <canvas id="faceCanvas" class="d-none"></canvas>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-3">
+                        <button class="btn btn-outline-secondary rounded-pill px-4" onclick="document.getElementById('faceInput').click()" id="btnUpload">
+                            <i class="fas fa-upload me-2"></i>上傳
                         </button>
-                        <button id="btnCapture" class="btn btn-danger rounded-pill d-none" onclick="takePhoto()">
-                            <i class="fas fa-camera me-1"></i> 拍照分析
+                        <input type="file" id="faceInput" class="d-none" accept="image/*" onchange="handleFaceUpload(this, captureMode)">
+
+                        <button id="btnFaceCam" class="btn btn-tech rounded-pill px-4" onclick="startFaceCamera()">
+                            <i class="fas fa-power-off me-2"></i>啟動鏡頭
                         </button>
+
+                        <button id="btnFaceCapture" class="btn btn-tech rounded-pill px-5 d-none" onclick="captureFace()">
+                            <i class="fas fa-camera me-2"></i><span id="captureBtnText">拍攝</span>
+                        </button>
+
+                        <button id="btnFaceConfirm" class="btn btn-primary rounded-pill px-5 d-none" onclick="confirmAndAnalyzeFace()">
+                            開始分析 <i class="fas fa-magic ms-2"></i>
+                        </button>
+                    </div>
+
+                    <div class="text-center mt-4" style="min-height: 70px;">
+                        <div class="position-relative d-inline-block">
+                            <img id="sideFaceThumb" class="face-thumb bg-white d-none shadow-sm" src="">
+                            <span id="sideFaceCheck" class="position-absolute top-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle d-none">
+                                <i class="fas fa-check text-white" style="font-size: 0.6rem;"></i>
+                            </span>
+                        </div>
+                        <div class="small text-muted mt-1" id="sideFaceLabel" style="display: none;">側臉已就緒</div>
                     </div>
                 </div>
 
                 <div class="col-md-6 ps-md-4">
-                    <div id="faceLoading" class="text-center d-none mt-4 mt-md-0">
-                        <div class="spinner-border text-danger" role="status"></div>
-                        <p class="mt-2 text-muted">AI 正在識別臉部特徵...</p>
+                    <div id="faceLoading" class="text-center d-none my-5 pt-5 fade-in">
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                        <h5 class="mt-3 fw-bold text-muted">AI 正在計算五官比例...</h5>
+                        <p class="text-muted small">FaceMesh + SkinTone Analysis</p>
                     </div>
 
-                    <div id="faceResult" class="d-none mt-4 mt-md-0">
-                        <h4 class="fw-bold text-dark mb-3">辨識成功</h4>
-                        <div class="p-3 bg-white rounded-3 shadow-sm mb-3 border-start border-4 border-danger">
-                            <h5 class="fw-bold text-danger" id="faceShapeRes"></h5>
-                            <hr>
-                            <ul class="list-unstyled text-muted small mt-2" id="faceDetails" style="line-height: 2;"></ul>
+                    <div id="faceResult" class="d-none fade-in h-100 d-flex flex-column justify-content-center">
+                        <div class="text-center mb-4">
+                            <h5 class="text-muted small text-uppercase ls-1">Analysis Result</h5>
+                            <h2 class="fw-bold text-primary display-6" id="resFaceShape">--</h2>
+                            <div class="mt-2">
+                                <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="resSkinSeason">膚色檢測中...</span>
+                            </div>
                         </div>
-                        <button class="btn btn-style w-100 rounded-pill py-2 shadow" onclick="goToStep2()">
-                            下一步：身材分析 <i class="fas fa-arrow-right ms-2"></i>
+
+                        <div class="card border-0 shadow-sm bg-light rounded-4 mb-4">
+                            <div class="card-body p-4">
+                                <div class="row g-3">
+                                    <div class="col-6"><small class="text-muted d-block">眼型</small><strong id="resEyes" class="text-dark fs-6">--</strong></div>
+                                    <div class="col-6"><small class="text-muted d-block">鼻型</small><strong id="resNose" class="text-dark fs-6">--</strong></div>
+                                    <div class="col-6"><small class="text-muted d-block">眉型</small><strong id="resBrows" class="text-dark fs-6">--</strong></div>
+                                    <div class="col-6"><small class="text-muted d-block">唇形</small><strong id="resLips" class="text-dark fs-6">--</strong></div>
+                                </div>
+                                <div class="mt-3 pt-3 border-top">
+                                    <small class="text-muted d-block">膚色冷暖調</small>
+                                    <strong id="resUndertone" class="text-primary fs-6">--</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary w-100 rounded-pill py-3 shadow-sm" onclick="goToStep2()">
+                            下一步：體態分析 <i class="fas fa-arrow-down ms-2"></i>
                         </button>
                     </div>
                 </div>
@@ -65,294 +216,668 @@
         </div>
 
         <div id="step2" class="glass-card fade-in d-none">
-            <h3 class="fw-bold mb-4" style="color: #D4A5A5;">
-                <i class="fas fa-magic me-2"></i>Step 2. 您的穿搭目標
-            </h3>
-            <div class="row">
-                <div class="col-md-6 border-end">
-                    <h5 class="mb-3 text-secondary">基礎數據 (cm)</h5>
-                    <div class="row g-3">
-                        <div class="col-6"><label>肩寬</label><input type="number" id="shoulder" class="form-control" placeholder="選填"></div>
-                        <div class="col-6"><label>胸圍</label><input type="number" id="chest" class="form-control" placeholder="選填"></div>
-                        <div class="col-6"><label>腰圍</label><input type="number" id="waist" class="form-control" placeholder="選填"></div>
-                        <div class="col-6"><label>臀圍</label><input type="number" id="hip" class="form-control" placeholder="選填"></div>
-                    </div>
+            <div class="d-flex justify-content-between align-items-end mb-5">
+                <div>
+                    <span class="badge rounded-pill bg-light text-primary mb-2 px-3 py-2 border">PHASE 02</span>
+                    <h3 class="fw-bold mb-0" style="color: #4a4a4a;">AI 體態分析</h3>
                 </div>
-                <div class="col-md-6 ps-md-4">
-                    <h5 class="mb-3 text-secondary">您希望透過穿搭達到什麼效果？</h5>
-                    <div class="d-flex flex-wrap gap-2">
-                        {% set goals = [
-                            ('修飾肩部線條', 'shoulder'),
-                            ('優化身形比例', 'ratio'),
-                            ('腹部視覺平坦', 'belly'),
-                            ('挺拔身姿', 'posture'),
-                            ('修飾臀腿線條', 'hip'),
-                            ('手臂線條柔和', 'arm'),
-                            ('拉長腿部視覺', 'leg')
-                        ] %}
-
-                        {% for label, val in goals %}
-                        <input type="checkbox" class="btn-check" id="goal_{{loop.index}}" value="{{val}}">
-                        <label class="btn btn-outline-secondary btn-sm rounded-pill border-0 shadow-sm" for="goal_{{loop.index}}" style="padding: 8px 16px;">
-                            {{label}}
-                        </label>
-                        {% endfor %}
-                    </div>
-                    <div class="mt-3 small text-muted">
-                        <i class="fas fa-heart text-danger me-1"></i> 每個身形都是獨一無二的，我們將協助您展現最自信的一面。
-                    </div>
-                </div>
+                <button class="btn btn-sm btn-link text-muted text-decoration-none" onclick="skipBodyAnalysis()">略過此步驟 <i class="fas fa-angle-double-right ms-1"></i></button>
             </div>
-            <div class="text-center mt-4">
-                <button class="btn btn-style btn-lg rounded-pill px-5 shadow" onclick="analyzeBody()">
-                    生成專屬建議 <i class="fas fa-wand-magic-sparkles ms-2"></i>
-                </button>
+
+            <div class="row g-5">
+                <div class="col-md-6 border-end border-light">
+                    <div class="btn-group w-100 mb-4 shadow-sm rounded-3 overflow-hidden" role="group">
+                        <input type="radio" class="btn-check" name="bodyMode" id="modeBodyManual" checked onclick="toggleBodyMode('manual')">
+                        <label class="btn btn-outline-custom py-2 border-0" for="modeBodyManual"><i class="fas fa-keyboard me-2"></i>手動</label>
+                        <input type="radio" class="btn-check" name="bodyMode" id="modeBodyCam" onclick="toggleBodyMode('cam')">
+                        <label class="btn btn-outline-custom py-2 border-0" for="modeBodyCam"><i class="fas fa-video me-2"></i>鏡頭</label>
+                        <input type="radio" class="btn-check" name="bodyMode" id="modeBodyUpload" onclick="toggleBodyMode('upload')">
+                        <label class="btn btn-outline-custom py-2 border-0" for="modeBodyUpload"><i class="fas fa-image me-2"></i>上傳</label>
+                    </div>
+
+                    <div id="manualInputContainer" class="h-100 d-flex flex-column justify-content-center">
+                        <div class="p-4 bg-light rounded-4 border border-light">
+                            <div class="row g-3">
+                                <div class="col-6"><div class="form-floating"><input type="number" class="form-control" id="inShoulder" placeholder="肩寬" oninput="calculateManualShape()"><label for="inShoulder">肩寬 (cm)</label></div></div>
+                                <div class="col-6"><div class="form-floating"><input type="number" class="form-control" id="inHip" placeholder="臀圍" oninput="calculateManualShape()"><label for="inHip">臀圍 (cm)</label></div></div>
+                                <div class="col-6"><div class="form-floating"><input type="number" class="form-control" id="inChest" placeholder="胸圍" oninput="calculateManualShape()"><label for="inChest">胸圍 (cm)</label></div></div>
+                                <div class="col-6"><div class="form-floating"><input type="number" class="form-control" id="inWaist" placeholder="腰圍" oninput="calculateManualShape()"><label for="inWaist">腰圍 (cm)</label></div></div>
+                            </div>
+                            <div class="mt-3 text-end"><small class="text-muted fst-italic">* 可僅輸入肩寬與臀圍進行粗略分析</small></div>
+                        </div>
+                    </div>
+
+                    <div id="visualContainer" class="camera-frame d-none mb-3 d-flex justify-content-center align-items-center" style="height: 400px;">
+                        <div id="bodyPlaceholder" class="text-secondary text-center"><i class="fas fa-child fa-4x mb-3 opacity-25"></i><p class="mb-0 small">請站在全身可入鏡的位置</p></div>
+                        <video id="bodyVideo" autoplay playsinline class="w-100 h-100 d-none" style="object-fit: cover; transform: scaleX(-1);"></video>
+                        <img id="bodyPreview" class="w-100 h-100 d-none" style="object-fit: contain;">
+                        <canvas id="bodyOutputCanvas" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none;"></canvas>
+                        <div id="bodyScanBeam" class="scan-beam-vertical d-none"></div>
+                    </div>
+
+                    <div id="bodyControlsCam" class="d-none text-center mt-3"><button class="btn btn-tech rounded-pill px-4" onclick="startBodyCamera()"><i class="fas fa-play me-2"></i>開始掃描</button><button id="btnBodyCapture" class="btn btn-primary text-white rounded-pill d-none px-4 ms-2" onclick="captureBodyMetrics()"><i class="fas fa-check me-2"></i>鎖定數據</button></div>
+                    <div id="bodyControlsUpload" class="d-none text-center mt-3"><button class="btn btn-outline-secondary rounded-pill px-4" onclick="document.getElementById('bodyInput').click()"><i class="fas fa-folder-open me-2"></i>瀏覽照片</button><input type="file" id="bodyInput" class="d-none" accept="image/*" onchange="handleBodyUpload(this)"></div>
+                </div>
+
+                <div class="col-md-6 ps-md-4 d-flex flex-column justify-content-center">
+                    <div class="card border-0 bg-light shadow-sm rounded-4 mb-4">
+                        <div class="card-body p-4 position-relative">
+                            <div class="position-absolute top-0 end-0 p-3 opacity-10"><i class="fas fa-shapes fa-5x text-secondary"></i></div>
+                            <small class="text-muted fw-bold text-uppercase ls-1">Detected Shape</small>
+                            <h2 class="fw-bold text-dark mt-2 mb-0" id="finalBodyShape">等待輸入...</h2>
+                        </div>
+                    </div>
+
+                    <div class="accordion shadow-sm rounded-3 overflow-hidden border-0 mb-5" id="manualAdjust">
+                        <div class="accordion-item border-0">
+                            <h2 class="accordion-header"><button class="accordion-button collapsed bg-white fw-bold text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdjust"><i class="fas fa-plus-circle me-2 text-primary"></i> 補充細節困擾 (選填)</button></h2>
+                            <div id="collapseAdjust" class="accordion-collapse collapse" data-bs-parent="#manualAdjust">
+                                <div class="accordion-body bg-white pt-0 pb-4 px-4">
+                                    <div class="d-flex flex-wrap gap-2 mt-3">
+                                        <input type="checkbox" class="btn-check" id="prob_belly" value="belly"><label class="btn btn-sm btn-outline-secondary rounded-pill px-3" for="prob_belly">小腹</label>
+                                        <input type="checkbox" class="btn-check" id="prob_thigh" value="hip"><label class="btn btn-sm btn-outline-secondary rounded-pill px-3" for="prob_thigh">假跨寬</label>
+                                        <input type="checkbox" class="btn-check" id="prob_arm" value="arm"><label class="btn btn-sm btn-outline-secondary rounded-pill px-3" for="prob_arm">蝴蝶袖</label>
+                                        <input type="checkbox" class="btn-check" id="prob_leg" value="leg"><label class="btn btn-sm btn-outline-secondary rounded-pill px-3" for="prob_leg">蘿蔔腿</label>
+                                        <input type="checkbox" class="btn-check" id="prob_neck" value="neck"><label class="btn btn-sm btn-outline-secondary rounded-pill px-3" for="prob_neck">脖子短</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary w-100 rounded-pill py-3 shadow-lg fw-bold fs-5" onclick="submitFullAnalysis()">✨ 生成全方位形象報告</button>
+                </div>
             </div>
         </div>
 
         <div id="step3" class="glass-card fade-in d-none">
             <div class="text-center mb-5">
-                <h2 class="fw-bold" style="color: #D4A5A5;">✨ 您的全方位形象報告</h2>
+                <span class="badge rounded-pill bg-light text-primary mb-2 px-3 py-2 border">PHASE 03</span>
+                <h3 class="fw-bold" style="color: var(--primary-pink);">✨ 您的 AI 全方位形象報告</h3>
             </div>
 
-            <div class="alert alert-warning text-center rounded-pill shadow-sm mb-4">
-                <h4 class="fw-bold mb-0" id="styleSummary"></h4>
-            </div>
-
-            <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="bg-white p-4 rounded-4 shadow-sm h-100 border-top border-4 border-warning">
-                        <h5 class="fw-bold mb-3">髮型建議</h5>
-                        <p id="hairRec" class="text-muted"></p>
+            <div class="row justify-content-center mb-5">
+                <div class="col-md-6 text-center">
+                    <div class="d-inline-flex flex-column align-items-center justify-content-center p-4 rounded-circle shadow-lg border border-4 border-white bg-light mx-auto mb-4 position-relative" style="width: 280px; height: 280px; background: linear-gradient(145deg, #ffffff, #f9f9f9);">
+                         <div class="position-absolute top-0 start-0 w-100 h-100 rounded-circle border border-2 opacity-25" style="border-color: var(--primary-pink); transform: scale(1.1);"></div>
+                        <small class="text-muted text-uppercase ls-1 mb-3 fw-bold">Your Signature Style</small>
+                        <h2 class="fw-bold text-primary mb-0 text-center lh-sm px-3" id="styleName" style="white-space: pre-wrap;">分析中...</h2>
                     </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="bg-white p-4 rounded-4 shadow-sm h-100 border-top border-4 border-danger">
-                        <h5 class="fw-bold mb-3">妝容方向</h5>
-                        <p id="makeupRec" class="text-muted"></p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="bg-white p-4 rounded-4 shadow-sm h-100 border-top border-4 border-info">
-                        <h5 class="fw-bold mb-3">配件點綴</h5>
-                        <p id="accRec" class="text-muted"></p>
-                    </div>
+                    <h5 class="mt-3 text-dark fw-bold px-4 fst-italic text-secondary" id="styleStory"></h5>
                 </div>
             </div>
 
-            <div class="mt-4">
-                <button class="btn btn-outline-primary w-100 rounded-pill border-2 dashed-border" type="button" data-bs-toggle="collapse" data-bs-target="#logicCollapse">
-                    <i class="fas fa-lightbulb me-2"></i> 為什麼 AI 這樣建議？ (點擊查看推論邏輯)
-                </button>
+            <div class="card border-0 bg-light rounded-4 shadow-sm mb-5">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3"
+                         style="cursor: pointer;"
+                         data-bs-toggle="collapse"
+                         data-bs-target="#collapseStyleAdvice"
+                         aria-expanded="true"
+                         aria-controls="collapseStyleAdvice">
 
-                <div class="collapse mt-3" id="logicCollapse">
-                    <div class="card card-body bg-light border-0 rounded-4">
-                        <h6 class="fw-bold text-primary mb-3">🧠 AI 思考路徑解析 (XAI)</h6>
-                        <ul class="list-group list-group-flush bg-transparent" id="logicTraceList">
-                            </ul>
-                        <div class="mt-3 small text-muted border-top pt-2">
-                            這就是我們為您量身打造的決策過程。學會這些邏輯，您也能成為自己的造型師！
+                        <h5 class="fw-bold text-primary mb-0">
+                            <i class="fas fa-quote-left me-2"></i>顧問總評
+                        </h5>
+                        <i class="fas fa-chevron-down text-primary transition-icon"></i>
+                    </div>
+
+                    <div class="collapse show" id="collapseStyleAdvice">
+                        <div class="text-dark lh-lg" id="styleAdvice" style="white-space: pre-line;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-5">
+                <div class="col-md-12">
+                    <div class="bg-white p-4 rounded-4 shadow-sm border-start border-4 border-primary h-100">
+                        <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-palette me-2 text-primary"></i>色彩與材質建議</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <small class="text-muted d-block mb-2">專屬色票 (Seasonal Palette)</small>
+                                <div id="colorPalette" class="d-flex align-items-center flex-wrap gap-1" style="min-height: 40px;"></div>
+                            </div>
+                            <div class="col-md-3 mb-3"><small class="text-muted d-block mb-2">推薦材質</small><div id="fabricList" class="d-flex flex-wrap gap-2"></div></div>
+                            <div class="col-md-3 mb-3"><small class="text-muted d-block mb-2">推薦圖案</small><div id="patternList" class="d-flex flex-wrap gap-2"></div></div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="mt-4 p-4 bg-light rounded-4 border-start border-4 border-success">
-                <h5 class="fw-bold mb-3 text-success">適合單品</h5>
-                <div id="suitableList" class="d-flex flex-wrap gap-2"></div>
+
+            <div class="row g-4 mb-5">
+                <div class="col-md-4"><div class="bg-white p-4 rounded-4 shadow-sm h-100 border-top border-4 border-warning"><h5 class="fw-bold mb-3 text-dark"><i class="fas fa-cut me-2 text-warning"></i>髮型</h5><div id="hairRec" class="text-muted"></div></div></div>
+                <div class="col-md-4"><div class="bg-white p-4 rounded-4 shadow-sm h-100 border-top border-4 border-danger"><h5 class="fw-bold mb-3 text-dark"><i class="fas fa-magic me-2 text-danger"></i>妝容</h5><div id="makeupRec" class="text-muted"></div></div></div>
+                <div class="col-md-4"><div class="bg-white p-4 rounded-4 shadow-sm h-100 border-top border-4 border-info"><h5 class="fw-bold mb-3 text-dark"><i class="fas fa-gem me-2 text-info"></i>配件</h5><div id="accRec" class="text-muted"></div></div></div>
             </div>
 
-            <div class="mt-4 p-4 bg-light rounded-4 border-start border-4 border-secondary">
-                <h5 class="fw-bold mb-3 text-secondary">避雷單品</h5>
-                <div id="avoidList" class="d-flex flex-wrap gap-2"></div>
+            <div class="row g-4">
+                <div class="col-md-6"><div class="p-4 bg-success bg-opacity-10 rounded-4 border border-success h-100"><h5 class="fw-bold mb-3 text-success"><i class="fas fa-check-circle me-2"></i>Do's (適合)</h5><div id="suitableList" class="d-flex flex-wrap gap-2"></div></div></div>
+                <div class="col-md-6"><div class="p-4 bg-danger bg-opacity-10 rounded-4 border border-danger h-100"><h5 class="fw-bold mb-3 text-danger"><i class="fas fa-times-circle me-2"></i>Don'ts (避免)</h5><div id="avoidList" class="d-flex flex-wrap gap-2"></div></div></div>
             </div>
 
-            <div class="text-center mt-5">
-                <a href="{{ url_for('history_page') }}" class="btn btn-style rounded-pill">儲存至歷史紀錄</a>
+            <div class="text-center mt-5 d-flex justify-content-center gap-3">
+                <a href="{{ url_for('history_page') }}" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold"><i class="fas fa-history me-2"></i> 歷史紀錄</a>
+                <a href="/try_on" class="btn btn-primary rounded-pill px-5 py-2 fw-bold"><i class="fas fa-tshirt me-2"></i> 去試衣間</a>
             </div>
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+
 <script>
-let analysisData = { face: {}, body: {} };
-let videoStream = null;
+let analysisData = { face: {}, body: {}, sideFace: null, skin: null };
+let activeStream = null;
+let originalFaceUrl = "";
+let sideFaceUrl = ""; // 用於存側臉照片
+let analyzedFaceUrl = "";
+let currentAspectRatio = 1.0;
+let captureMode = 'front';
 
-// 相機功能
-async function startCamera() {
-    try {
-        const video = document.getElementById('cameraStream');
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        videoStream = stream;
-        video.srcObject = stream;
-        video.classList.remove('d-none');
-        document.getElementById('imagePreview').classList.add('d-none');
-        document.getElementById('placeholderText').classList.add('d-none');
-        document.getElementById('btnOpenCamera').classList.add('d-none');
-        document.getElementById('btnCapture').classList.remove('d-none');
-    } catch (err) { alert("無法開啟相機"); }
-}
-
-function takePhoto() {
-    const video = document.getElementById('cameraStream');
-    const canvas = document.getElementById('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    canvas.toBlob(blob => {
-        uploadAndAnalyzeFace(new File([blob], "webcam.jpg", { type: "image/jpeg" }));
-    }, 'image/jpeg');
-    stopCamera();
-    document.getElementById('imagePreview').src = canvas.toDataURL('image/jpeg');
-    document.getElementById('imagePreview').classList.remove('d-none');
-    document.getElementById('cameraStream').classList.add('d-none');
-}
-
-function stopCamera() {
-    if (videoStream) { videoStream.getTracks().forEach(t => t.stop()); videoStream = null; }
-    document.getElementById('btnCapture').classList.add('d-none');
-    document.getElementById('btnOpenCamera').classList.remove('d-none');
-}
-
-function handleFileUpload(input) {
-    if (input.files[0]) {
-        let r = new FileReader();
-        r.onload = e => {
-            document.getElementById('imagePreview').src = e.target.result;
-            document.getElementById('imagePreview').classList.remove('d-none');
-            document.getElementById('placeholderText').classList.add('d-none');
-            stopCamera();
-            uploadAndAnalyzeFace(input.files[0]);
-        };
-        r.readAsDataURL(input.files[0]);
-    }
-}
-
-// ==========================================
-// API 串接與防濫用處理
-// ==========================================
-function uploadAndAnalyzeFace(file) {
-    let fd = new FormData();
-    fd.append('image', file);
-
-    document.getElementById('faceLoading').classList.remove('d-none');
-    document.getElementById('faceResult').classList.add('d-none');
-
-    fetch('/api/analyze_face', { method: 'POST', body: fd })
-    .then(r => r.json()).then(data => {
-        document.getElementById('faceLoading').classList.add('d-none');
-
-        // 處理 1: 過度依賴警告 (Warning)
-        if (data.status === 'warning') {
-            alert(data.msg);
-            document.getElementById('placeholderText').classList.remove('d-none');
-            document.getElementById('imagePreview').classList.add('d-none');
-            document.getElementById('imageInput').value = '';
-            return;
-        }
-
-        // 處理 2: 圖像濫用錯誤 (Error)
-        if (data.status === 'error') {
-            alert(data.msg);
-            document.getElementById('placeholderText').classList.remove('d-none');
-            document.getElementById('imagePreview').classList.add('d-none');
-            document.getElementById('imageInput').value = '';
-            return;
-        }
-
-        // 處理 3: 成功 (Success)
-        document.getElementById('faceResult').classList.remove('d-none');
-        analysisData.face = data.data;
-        document.getElementById('faceShapeRes').innerText = data.data.shape;
-        document.getElementById('faceDetails').innerHTML = `
-            <li>眼型：${data.data.features.eyes}</li>
-            <li>鼻型：${data.data.features.nose}</li>
-            <li class="text-danger mt-2 small border-top pt-2">
-                <i class="fas fa-exclamation-circle me-1"></i> ${data.disclaimer || '僅供參考'}
-            </li>
-        `;
-    });
+// 1. 流程控制
+function updateProgress(step) {
+    const bar = document.getElementById('progressBar');
+    document.getElementById('step'+(step-1)+'Indicator').classList.add('completed');
+    document.getElementById('step'+step+'Indicator').classList.add('active');
+    bar.style.width = (step===2?"50%":"100%");
 }
 
 function goToStep2() {
     document.getElementById('step1').classList.add('d-none');
     document.getElementById('step2').classList.remove('d-none');
-    document.getElementById('progressBar').style.width = "66%";
-    document.getElementById('step2Indicator').classList.add('btn-danger');
+    updateProgress(2);
+    if(document.getElementById('modeBodyManual').checked) toggleBodyMode('manual');
 }
 
-function analyzeBody() {
-    let problems = [];
-    document.querySelectorAll('input[type=checkbox]:checked').forEach(el => problems.push(el.value));
-    let bodyData = {
-        shoulder: document.getElementById('shoulder').value,
-        chest: document.getElementById('chest').value,
-        waist: document.getElementById('waist').value,
-        hip: document.getElementById('hip').value,
-        problems: problems
-    };
+function skipBodyAnalysis() {
+    // 給予完整的中文名稱，確保後端 AI 能抓到關鍵字
+    document.getElementById('finalBodyShape').innerText = "直筒型 (H-Shape)";
+    submitFullAnalysis(true);
+}
 
-    fetch('/api/analyze_body', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(bodyData)
-    }).then(r => r.json()).then(data => {
-        analysisData.body = data.data;
-        generateFinalResult(problems);
+// 2. 視圖與拍攝切換
+function switchCaptureMode(mode) {
+    captureMode = mode;
+    const title = document.getElementById('scanTitle');
+    const btnText = document.getElementById('captureBtnText');
+
+    if(activeStream) {
+        activeStream.getTracks().forEach(t=>t.stop());
+        document.getElementById('faceVideo').classList.add('d-none');
+        document.getElementById('faceScanOverlay').classList.add('d-none');
+        document.getElementById('btnFaceCam').classList.remove('d-none');
+        document.getElementById('btnFaceCapture').classList.add('d-none');
+    }
+
+    if(mode === 'front') {
+        title.innerText = "準備掃描正臉";
+        btnText.innerText = "拍攝正臉";
+
+        if (analysisData.face && analysisData.face.landmarks_3d_grouped) {
+            document.getElementById('facePlaceholder').classList.add('d-none');
+            document.getElementById('viewToggleBar').classList.remove('d-none');
+            toggleFaceView('3d');
+        } else if (originalFaceUrl) {
+            document.getElementById('facePreview').src = originalFaceUrl;
+            document.getElementById('facePreviewContainer').classList.remove('d-none');
+            document.getElementById('facePlaceholder').classList.add('d-none');
+            document.getElementById('btnFaceConfirm').classList.remove('d-none');
+        } else {
+            document.getElementById('facePlaceholder').classList.remove('d-none');
+            document.getElementById('facePreviewContainer').classList.add('d-none');
+        }
+    } else {
+        title.innerText = "準備掃描側臉";
+        btnText.innerText = "拍攝側臉";
+
+        document.getElementById('viewToggleBar').classList.add('d-none');
+        document.getElementById('face3dContainer').classList.add('d-none');
+        document.getElementById('faceCanvas').classList.add('d-none');
+
+        if (sideFaceUrl) {
+            document.getElementById('facePreview').src = sideFaceUrl;
+            document.getElementById('facePreviewContainer').classList.remove('d-none');
+            document.getElementById('facePlaceholder').classList.add('d-none');
+        } else {
+            document.getElementById('facePreviewContainer').classList.add('d-none');
+            document.getElementById('facePlaceholder').classList.remove('d-none');
+        }
+        document.getElementById('btnFaceConfirm').classList.add('d-none');
+    }
+}
+
+function toggleFaceView(viewType) {
+    document.getElementById('facePreviewContainer').classList.add('d-none');
+    document.getElementById('face3dContainer').classList.add('d-none');
+    document.getElementById('faceCanvas').classList.add('d-none');
+    document.getElementById('facePlaceholder').classList.add('d-none');
+
+    document.querySelectorAll('.view-toggle .btn-toggle').forEach(b => b.classList.remove('active'));
+
+    const previewImg = document.getElementById('facePreview');
+
+    if (viewType === 'original') {
+        if(originalFaceUrl) {
+            document.getElementById('facePreview').src = originalFaceUrl;
+            document.getElementById('facePreviewContainer').classList.remove('d-none');
+            document.querySelector('.view-toggle button:nth-child(1)').classList.add('active');
+        }
+    } else if (viewType === '2d') {
+        if(analyzedFaceUrl) {
+            document.getElementById('facePreview').src = analyzedFaceUrl;
+            document.getElementById('facePreviewContainer').classList.remove('d-none');
+            document.querySelector('.view-toggle button:nth-child(2)').classList.add('active');
+        } else {
+            previewImg.src = originalFaceUrl;
+            document.getElementById('facePreviewContainer').classList.remove('d-none');
+        }
+    } else if (viewType === '3d') {
+        document.getElementById('face3dContainer').classList.remove('d-none');
+        Plotly.Plots.resize('face3dContainer');
+        document.querySelector('.view-toggle button:nth-child(3)').classList.add('active');
+    }
+}
+
+function startFaceCamera() {
+    const video = document.getElementById('faceVideo');
+    if (!navigator.mediaDevices) return alert("不支援相機");
+    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+        activeStream = stream;
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+            video.classList.remove('d-none');
+            document.getElementById('facePlaceholder').classList.add('d-none');
+            document.getElementById('facePreviewContainer').classList.add('d-none');
+            document.getElementById('faceScanOverlay').classList.remove('d-none');
+            document.getElementById('btnFaceCam').classList.add('d-none');
+            document.getElementById('btnUpload').classList.add('d-none');
+            document.getElementById('btnFaceCapture').classList.remove('d-none');
+            document.getElementById('viewToggleBar').classList.add('d-none');
+        };
     });
 }
 
-function generateFinalResult(problems) {
-    fetch('/api/generate_full_report', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ face_data: analysisData.face, body_data: { shape: analysisData.body.shape, problems: problems } })
-    }).then(r => r.json()).then(data => {
-        document.getElementById('step2').classList.add('d-none');
-        document.getElementById('step3').classList.remove('d-none');
-        document.getElementById('progressBar').style.width = "100%";
-        document.getElementById('step3Indicator').classList.add('btn-danger');
+function captureFace() {
+    const video = document.getElementById('faceVideo');
+    const canvas = document.getElementById('faceCanvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    currentAspectRatio = video.videoWidth / video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg');
 
-        document.getElementById('styleSummary').innerText = `🎯 ${data.result.summary}`;
-        document.getElementById('hairRec').innerText = data.result.hair;
-        document.getElementById('makeupRec').innerText = data.result.makeup;
-        document.getElementById('accRec').innerText = data.result.accessories;
+    if(activeStream) activeStream.getTracks().forEach(t=>t.stop());
+    video.classList.add('d-none');
+    document.getElementById('faceScanOverlay').classList.add('d-none');
+    document.getElementById('btnFaceCapture').classList.add('d-none');
+    document.getElementById('btnFaceCam').classList.remove('d-none');
+    document.getElementById('btnUpload').classList.remove('d-none');
 
-        // --- NEW: 處理教學模式邏輯顯示 (Logic Trace) ---
-        let traceList = document.getElementById('logicTraceList');
-        traceList.innerHTML = ''; // 清空
+    if(captureMode === 'front') {
+        originalFaceUrl = dataUrl;
+        document.getElementById('facePreview').src = originalFaceUrl;
+        document.getElementById('facePreviewContainer').classList.remove('d-none');
+        document.getElementById('btnFaceConfirm').classList.remove('d-none');
+    } else {
+        sideFaceUrl = dataUrl;
+        const thumb = document.getElementById('sideFaceThumb');
+        thumb.src = dataUrl;
+        thumb.classList.remove('d-none');
+        thumb.classList.add('captured');
+        document.getElementById('sideFaceCheck').classList.remove('d-none');
+        document.getElementById('sideFaceLabel').style.display = 'block';
 
-        // 解析邏輯字串
-        let rawTrace = data.result.logic_trace || "STEP 1 [分析] 綜合評估 -> STEP 2 [建議] 生成結果";
-        let steps = rawTrace.split(' -> ');
+        document.getElementById('facePreview').src = sideFaceUrl;
+        document.getElementById('facePreviewContainer').classList.remove('d-none');
+        document.getElementById('facePlaceholder').classList.add('d-none');
 
-        steps.forEach((step, index) => {
-            let parts = step.match(/\[(.*?)\]\s*(.*)/); // 正則拆分 [Tag] Content
-            let tag = parts ? parts[1] : `Step ${index+1}`;
-            let content = parts ? parts[2] : step;
+        fetch(dataUrl).then(res => res.blob()).then(blob => {
+            analysisData.sideFace = new File([blob], "side_face.jpg", { type: "image/jpeg" });
+        });
+    }
+}
 
-            let li = document.createElement('li');
-            li.className = "list-group-item bg-transparent d-flex align-items-start";
-            li.innerHTML = `
-                <span class="badge bg-primary me-2 rounded-pill">${tag}</span>
-                <span>${content}</span>
-            `;
-            traceList.appendChild(li);
+function handleFaceUpload(input, type){
+    if(input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            if(type === 'front') {
+                originalFaceUrl = e.target.result;
+                document.getElementById('facePreview').src=originalFaceUrl;
+                document.getElementById('facePreviewContainer').classList.remove('d-none');
+                document.getElementById('facePlaceholder').classList.add('d-none');
+                document.getElementById('btnFaceConfirm').classList.remove('d-none');
+                document.getElementById('viewToggleBar').classList.add('d-none');
+            } else {
+                sideFaceUrl = e.target.result;
+                const thumb = document.getElementById('sideFaceThumb');
+                thumb.src = e.target.result;
+                thumb.classList.remove('d-none');
+                thumb.classList.add('captured');
+                document.getElementById('sideFaceCheck').classList.remove('d-none');
+                document.getElementById('sideFaceLabel').style.display = 'block';
+                analysisData.sideFace = input.files[0];
+
+                if (captureMode === 'side') {
+                    document.getElementById('facePreview').src = sideFaceUrl;
+                    document.getElementById('facePreviewContainer').classList.remove('d-none');
+                    document.getElementById('facePlaceholder').classList.add('d-none');
+                }
+            }
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function confirmAndAnalyzeFace() {
+    if (!originalFaceUrl) return alert("請先拍攝或上傳正臉照片");
+
+    fetch(originalFaceUrl).then(res => res.blob()).then(blob => {
+        let file = new File([blob], "face_capture.jpg", { type: "image/jpeg" });
+        processFaceAnalysis(file);
+    });
+}
+
+function processFaceAnalysis(file) {
+    let fd = new FormData(); fd.append('image', file);
+    if(analysisData.sideFace) fd.append('side_image', analysisData.sideFace);
+
+    document.getElementById('btnFaceConfirm').disabled = true;
+    document.getElementById('faceLoading').classList.remove('d-none');
+
+    const p1 = fetch('/api/analyze_face', { method: 'POST', body: fd }).then(r=>r.json());
+    const p2 = fetch('/api/analyze_skin', { method: 'POST', body: fd }).then(r=>r.json());
+
+    Promise.all([p1, p2]).then(results => {
+        const faceRes = results[0];
+        const skinRes = results[1];
+
+        document.getElementById('faceLoading').classList.add('d-none');
+
+        if(faceRes.status==='error') { alert(faceRes.msg); document.getElementById('btnFaceConfirm').disabled = false; return; }
+        analysisData.face = faceRes.data;
+        document.getElementById('resFaceShape').innerText = faceRes.data.shape;
+        document.getElementById('resEyes').innerText = faceRes.data.features.eyes;
+        document.getElementById('resNose').innerText = faceRes.data.features.nose;
+        document.getElementById('resBrows').innerText = faceRes.data.features.eyebrows.split(' ')[0];
+        document.getElementById('resLips').innerText = faceRes.data.features.lips.split(' ')[0];
+
+        if(skinRes.status === 'success') {
+            analysisData.skin = skinRes.data.season_key;
+            document.getElementById('resUndertone').innerText = skinRes.data.undertone;
+            document.getElementById('resSkinSeason').innerText = `✨ ${skinRes.data.season_name}`;
+            document.getElementById('resSkinSeason').classList.remove('bg-light','text-dark');
+            document.getElementById('resSkinSeason').classList.add('bg-primary', 'text-white');
+        } else {
+            document.getElementById('resUndertone').innerText = "未檢出";
+            document.getElementById('resSkinSeason').innerText = "膚色分析失敗";
+        }
+
+        if(faceRes.data.landmarks_3d_grouped) {
+            document.getElementById('modeFront').checked = true;
+            captureMode = 'front';
+
+            document.getElementById('viewToggleBar').classList.remove('d-none');
+            if(faceRes.data.analyzed_image) analyzedFaceUrl = "/static/uploads/" + faceRes.data.analyzed_image;
+
+            // 呼叫 3D 繪圖
+            render3DBoneStructure(
+                faceRes.data.landmarks_3d_grouped,
+                faceRes.data.landmarks_3d_raw,
+                faceRes.data.aspect_ratio
+            );
+
+            // [UX 優化] 分析完成後，自動切回原圖，需手動切換到 3D
+            toggleFaceView('original');
+        }
+
+        document.getElementById('faceResult').classList.remove('d-none');
+        document.getElementById('btnFaceConfirm').classList.add('d-none');
+        document.getElementById('faceResult').scrollIntoView({ behavior: 'smooth' });
+    });
+}
+
+function render3DBoneStructure(groupedLandmarks, rawLandmarks, ar) {
+    let traces = [];
+
+    // [修正] 3D 顯示邏輯
+    if (rawLandmarks && rawLandmarks.length > 0) {
+        let mx = [], my = [], mz = [];
+
+        rawLandmarks.forEach(p => {
+            // X 軸：翻轉 (鏡像) 並校正長寬比
+            mx.push((p.x - 0.5) * -1 * ar);
+
+            // [關鍵修正] Y 軸：乘上 -1 以修正顛倒問題
+            // 原本是 p.y - 0.5 (造成倒立)，現在改為 (p.y - 0.5) * -1
+            my.push((p.y - 0.5) * -1);
+
+            mz.push(p.z);
         });
 
-        const fillList = (id, list, color) => {
-            document.getElementById(id).innerHTML = list.map(item =>
-                `<span class="badge bg-${color}-subtle text-${color} border border-${color}-subtle px-3 py-2 rounded-pill">${item}</span>`
-            ).join('');
+        traces.push({
+            type: 'mesh3d',
+            x: mx, y: my, z: mz,
+
+            // 風格：青色單色階漸層
+            intensity: mz,
+            colorscale: [
+                [0, 'rgb(0, 40, 40)'],    // 深處 (暗青)
+                [0.4, 'rgb(0, 100, 100)'], // 中間
+                [0.7, 'rgb(0, 255, 255)'], // 淺處 (亮青)
+                [1, 'rgb(220, 255, 255)']  // 凸點 (白光)
+            ],
+
+            opacity: 1.0,       // 滿版不透明
+            flatshading: false, // 平滑著色
+            alphahull: -1,      // 確保表面封閉
+            name: 'Face Mesh',
+
+            // 質感光照
+            lighting: {
+                ambient: 0.5,
+                diffuse: 0.9,
+                roughness: 0.3,
+                specular: 0.5
+            },
+            hoverinfo: 'none'
+        });
+    }
+
+    let layout = {
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        showlegend: false,
+        scene: {
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            zaxis: { visible: false },
+
+            // 鎖定比例，防止變形
+            aspectmode: 'data',
+
+            camera: {
+                eye: { x: 0, y: 0, z: 2.2 },
+                up: { x: 0, y: 1, z: 0 }
+            },
+            dragmode: 'orbit'
+        },
+        margin: { t: 0, b: 0, l: 0, r: 0 }
+    };
+
+    Plotly.newPlot('face3dContainer', traces, layout, { displayModeBar: false });
+}
+
+// 3. Body Logic
+function toggleBodyMode(mode) {
+    ['visualContainer','manualInputContainer','bodyControlsCam','bodyControlsUpload'].forEach(id=>document.getElementById(id).classList.add('d-none'));
+    if(mode==='manual') { document.getElementById('manualInputContainer').classList.remove('d-none'); calculateManualShape(); }
+    else {
+        document.getElementById('visualContainer').classList.remove('d-none');
+        if(mode==='cam') document.getElementById('bodyControlsCam').classList.remove('d-none');
+        else document.getElementById('bodyControlsUpload').classList.remove('d-none');
+    }
+}
+function calculateManualShape() {
+    const shoulderWidth = parseFloat(document.getElementById('inShoulder').value) || 0;
+    const chest = parseFloat(document.getElementById('inChest').value) || 0;
+    const waist = parseFloat(document.getElementById('inWaist').value) || 0;
+    const hip = parseFloat(document.getElementById('inHip').value) || 0;
+    const el = document.getElementById('finalBodyShape');
+
+    if ((waist > 0 && hip > 0) || (shoulderWidth > 0 && hip > 0) || (chest > 0 && hip > 0)) {
+        let shape = "H";
+        let shapeName = "直筒型";
+
+        if (chest > 0 && waist > 0 && hip > 0) {
+            const whRatio = waist / hip;
+
+            if (waist >= hip || whRatio > 0.88) {
+                shape = "O"; shapeName = "蘋果型";
+            } else if (whRatio <= 0.80 && Math.abs(chest - hip) < hip * 0.15) {
+                shape = "X"; shapeName = "沙漏型";
+            } else if (hip > chest * 1.05) {
+                shape = "A"; shapeName = "梨型";
+            } else if (chest > hip * 1.05) {
+                shape = "Y"; shapeName = "倒三角型";
+            }
+        } else if (shoulderWidth > 0 && hip > 0) {
+            const estShoulderCirc = shoulderWidth * 2.5;
+            const ratio = estShoulderCirc / hip;
+            if (ratio > 1.05) { shape = "Y"; shapeName = "倒三角型"; }
+            else if (ratio < 0.95) { shape = "A"; shapeName = "梨型"; }
+        }
+
+        detectedBodyShape = shape;
+        el.innerText = `${shapeName} (${shape})`;
+        el.classList.add('text-tech');
+    } else if (!el.innerText.includes("略過")) {
+        el.innerHTML = '等待輸入...';
+    }
+}
+function cleanAIText(text) { if (!text) return ""; return text.replace(/[#*]/g, ''); }
+
+function submitFullAnalysis(isSkip=false) {
+    // ⚠️【關鍵修正 1】：直接抓取完整的文字 (如 "梨型 (A)")
+    // 這樣後端 AI 演算法才能比對到 "梨" 這個字並加分
+    let finalShape = document.getElementById('finalBodyShape').innerText;
+
+    // 防呆：如果還是預設字眼，給予預設身形
+    if (finalShape.includes("等待輸入") || finalShape.includes("略過")) {
+        finalShape = "直筒型 (H-Shape)";
+    }
+
+    const payload = {
+        face_data: analysisData.face,
+        body_data: {
+            shape: finalShape,
+            problems: Array.from(document.querySelectorAll('#manualAdjust input:checked')).map(c => c.value)
+        },
+        skin_season: analysisData.skin
+    };
+
+    // ⚠️【UX 優化】：讓按鈕顯示轉圈圈，防止使用者狂按以為當機
+    const btnSubmit = document.querySelector('button[onclick="submitFullAnalysis()"]');
+    const originalBtnText = btnSubmit ? btnSubmit.innerHTML : "✨ 生成全方位形象報告";
+    if (btnSubmit) {
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>AI 報告生成中...';
+        btnSubmit.disabled = true;
+    }
+
+    fetch('/api/generate_full_report', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(r=>r.json()).then(data=>{
+        // 恢復按鈕狀態
+        if (btnSubmit) {
+            btnSubmit.innerHTML = originalBtnText;
+            btnSubmit.disabled = false;
+        }
+
+        if(data.status === 'error') {
+            alert("報告生成失敗：" + data.msg);
+            return;
+        }
+
+        // --- 填入報告資料 (維持原狀) ---
+        let rawName = data.result.archetype || "分析完成";
+        if (rawName.includes(' (')) {
+            let parts = rawName.split(' (');
+            document.getElementById('styleName').innerHTML =
+                `${parts[0]}<br><span class="fs-5 text-muted fw-normal">(${parts[1]}</span>`;
+        } else {
+            document.getElementById('styleName').innerText = rawName;
+        }
+
+        document.getElementById('styleStory').innerText = data.result.story || "";
+        document.getElementById('styleAdvice').innerText = cleanAIText(data.result.advice);
+
+        const renderList = (id, list, color) => {
+            const container = document.getElementById(id);
+            if (!container) return;
+            if (!list || list.length === 0) { container.innerHTML = '<span class="text-muted small">無特別建議</span>'; return; }
+            let items = Array.isArray(list) ? list : (typeof list === 'string' ? list.split(/[,、]/) : []);
+            container.innerHTML = items.map(item =>
+                `<span class="badge bg-${color} bg-opacity-10 text-${color} border border-${color} border-opacity-25 px-3 py-2 rounded-pill mb-1">${item.trim()}</span>`
+            ).join(' ');
         };
-        fillList('suitableList', ['A字裙', '襯衫'], 'success');
-        fillList('avoidList', data.result.avoid, 'secondary');
+
+        renderList('hairRec', data.result.hairstyle_list || data.result.hairstyle, 'warning');
+        renderList('makeupRec', data.result.makeup_list || data.result.makeup, 'danger');
+        renderList('accRec', data.result.accessories, 'info');
+        renderList('suitableList', data.result.dos, 'success');
+        renderList('avoidList', data.result.donts, 'danger');
+        renderList('fabricList', data.result.fabrics, 'secondary');
+        renderList('patternList', data.result.patterns, 'secondary');
+
+        const paletteContainer = document.getElementById('colorPalette');
+        if (paletteContainer) {
+            paletteContainer.innerHTML = '';
+            if(data.result.seasonal_color && data.result.seasonal_color.length > 0) {
+                const colors = data.result.seasonal_color[0].best;
+                colors.forEach(c => {
+                    let hex = '#ccc';
+                    const match = c.match(/#[0-9a-fA-F]{6}/);
+                    if(match) hex = match[0];
+
+                    const swatch = document.createElement('div');
+                    swatch.className = 'color-swatch';
+                    swatch.style.backgroundColor = hex;
+                    swatch.title = c;
+                    paletteContainer.appendChild(swatch);
+                });
+            } else {
+                paletteContainer.innerHTML = '<span class="text-muted small">暫無色彩建議</span>';
+            }
+        }
+
+        // ===============================================
+        // ⚠️【關鍵修正 2】：隱藏第二步，顯示第三步！並捲動到最上方
+        // ===============================================
+        document.getElementById('step2').classList.add('d-none');
+        document.getElementById('step3').classList.remove('d-none');
+        updateProgress(3);
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    }).catch(err => {
+        console.error(err);
+        if (btnSubmit) {
+            btnSubmit.innerHTML = originalBtnText;
+            btnSubmit.disabled = false;
+        }
+        alert("伺服器連線異常，請檢查終端機是否有錯誤！");
     });
 }
+
+function initPose() { if(poseModel) return; poseModel = new Pose({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`}); poseModel.setOptions({modelComplexity: 1, smoothLandmarks: true}); poseModel.onResults(onPoseResults); }
+function startBodyCamera() { initPose(); const v=document.getElementById('bodyVideo'); bodyCameraMgr=new Camera(v,{onFrame:async()=>{await poseModel.send({image:v})},width:640,height:480}); bodyCameraMgr.start(); document.getElementById('bodyPlaceholder').classList.add('d-none'); v.classList.remove('d-none'); document.getElementById('bodyScanBeam').classList.remove('d-none'); document.getElementById('bodyControlsCam').querySelector('button').classList.add('d-none'); document.getElementById('btnBodyCapture').classList.remove('d-none'); }
+function handleBodyUpload(i){if(i.files[0]){initPose();const f=i.files[0],img=document.getElementById('bodyPreview');const r=new FileReader();r.onload=e=>{img.src=e.target.result;img.classList.remove('d-none');document.getElementById('bodyPlaceholder').classList.add('d-none');document.getElementById('bodyScanBeam').classList.remove('d-none');img.onload=async()=>{await poseModel.send({image:img});document.getElementById('bodyScanBeam').classList.add('d-none');}};r.readAsDataURL(f);}}
+function onPoseResults(r){const c=document.getElementById('bodyOutputCanvas'),ctx=c.getContext('2d');c.width=r.image.width;c.height=r.image.height;ctx.clearRect(0,0,c.width,c.height);if(r.poseLandmarks){drawConnectors(ctx,r.poseLandmarks,POSE_CONNECTIONS,{color:'#4682B4',lineWidth:3});drawLandmarks(ctx,r.poseLandmarks,{color:'#D4A5A5',lineWidth:2,radius:4});const lm=r.poseLandmarks,s=Math.abs(lm[11].x-lm[12].x),h=Math.abs(lm[23].x-lm[24].x);if(h>0){const ratio=s/h;let shape=(ratio>1.1)?'Y':(ratio<0.9)?'A':'H';detectedBodyShape=shape;document.getElementById('finalBodyShape').innerText=(shape=='Y'?'倒三角型':shape=='A'?'梨型':'直筒型')+" ("+shape+")";document.getElementById('finalBodyShape').classList.add('text-tech');}}}
+function captureBodyMetrics(){if(bodyCameraMgr)bodyCameraMgr.stop();document.getElementById('bodyScanBeam').classList.add('d-none');if(document.getElementById('finalBodyShape').innerText.includes("等待")){alert("尚未偵測到數據");}else{alert("數據已鎖定");}}
 </script>
-<style>
-    .fade-in { animation: fadeIn 0.5s ease-in; }
-    @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
-    .dashed-border { border-style: dashed; }
-</style>
 {% endblock %}

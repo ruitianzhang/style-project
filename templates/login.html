@@ -1,15 +1,175 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
-    <div class="col-md-5 col-lg-4">
-        <div class="glass-card text-center">
-            <h3 class="mb-4 fw-bold">會員登入</h3>
-            <form action="{{ url_for('login_page') }}" method="POST">
-                <input type="email" name="email" class="form-control rounded-pill mb-3" placeholder="Email" required>
-                <input type="password" name="password" class="form-control rounded-pill mb-4" placeholder="密碼" required>
-                <button type="submit" class="btn btn-style w-100 rounded-pill py-2">登入</button>
-            </form>
-            <div class="mt-3"><small><a href="{{ url_for('register_page') }}" class="text-muted">註冊新帳號</a></small></div>
+<style>
+    :root {
+        --morandi-pink: #D4A5A5;
+        --morandi-gold: #C5A065;
+        --morandi-green: #8DA399;
+        --morandi-purple: #9B8EA9;
+        --glass-bg: rgba(255, 255, 255, 0.75);
+        --glass-border: rgba(255, 255, 255, 0.8);
+    }
+
+    /* 1. 承襲首頁的背景流動光暈 */
+    .ambient-light {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.3;
+        z-index: 0;
+        animation: floatLight 12s infinite ease-in-out;
+    }
+
+    /* 2. 登入卡片：使用與首頁一致的 glass-panel 效果 */
+    .login-glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.05);
+        border-radius: 2rem;
+        position: relative;
+        z-index: 2;
+        transition: transform 0.3s ease;
+    }
+
+    /* 3. 輸入框樣式：呼應搜尋框的設計 */
+    .custom-input-group {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 50px;
+        transition: all 0.3s;
+        overflow: hidden;
+    }
+    .custom-input-group:focus-within {
+        border-color: var(--morandi-pink);
+        box-shadow: 0 5px 15px rgba(212, 165, 165, 0.2);
+        transform: translateY(-2px);
+    }
+    .custom-input-group .input-group-text {
+        background: transparent;
+        border: none;
+        padding-left: 1.5rem;
+        color: var(--morandi-pink);
+    }
+    .custom-input-group .form-control {
+        background: transparent;
+        border: none;
+        padding: 0.75rem 1rem;
+        box-shadow: none !important;
+    }
+
+    /* 4. 按鈕樣式：使用莫蘭迪粉漸層 */
+    .btn-login-gradient {
+        background: linear-gradient(135deg, var(--morandi-pink), #C58E8E);
+        border: none;
+        color: white;
+        transition: all 0.3s;
+    }
+    .btn-login-gradient:hover {
+        transform: scale(1.02);
+        box-shadow: 0 8px 20px rgba(212, 165, 165, 0.3);
+        color: white;
+        filter: brightness(1.05);
+    }
+
+    /* 社群按鈕 */
+    .social-btn {
+        width: 50px;
+        height: 50px;
+        background: white;
+        border: 1px solid #eee;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: 0.3s;
+        text-decoration: none;
+    }
+    .social-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        border-color: var(--morandi-pink);
+    }
+
+    @keyframes floatLight {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        50% { transform: translate(20px, 20px) scale(1.1); }
+    }
+
+    .text-morandi-pink { color: var(--morandi-pink); }
+</style>
+
+<div class="position-relative overflow-hidden d-flex align-items-center justify-content-center" style="min-height: 85vh;">
+
+    <div class="position-absolute top-0 start-0 w-100 h-100" style="z-index: -1;">
+        <div class="ambient-light" style="top: 10%; left: 15%; width: 400px; height: 400px; background: var(--morandi-pink);"></div>
+        <div class="ambient-light" style="bottom: 10%; right: 15%; width: 350px; height: 350px; background: var(--morandi-gold); animation-delay: -3s;"></div>
+    </div>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-5 col-lg-4">
+
+                <div class="login-glass-card p-4 p-md-5">
+                    <div class="text-center mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-sm mb-3"
+                             style="width: 65px; height: 65px; color: var(--morandi-pink);">
+                            <i class="fas fa-magic fa-2x"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark">歡迎回來</h3>
+                        <p class="text-muted small">開啟您的莫蘭迪美學之旅</p>
+                    </div>
+
+                    <form action="{{ url_for('login_page') }}" method="POST">
+                        <div class="input-group custom-input-group mb-3">
+                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                            <input type="email" name="email" class="form-control" placeholder="電子信箱" required>
+                        </div>
+
+                        <div class="input-group custom-input-group mb-3">
+                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                            <input type="password" name="password" class="form-control" placeholder="密碼" required>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mb-4 px-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rememberMe" name="remember">
+                                <label class="form-check-label small text-muted" for="rememberMe">記住我</label>
+                            </div>
+                            <a href="#" class="small text-decoration-none text-morandi-pink">忘記密碼？</a>
+                        </div>
+
+                        <button type="submit" class="btn btn-login-gradient w-100 rounded-pill py-2 fw-bold mb-4">
+                            登 入
+                        </button>
+                    </form>
+
+                    <div class="d-flex align-items-center mb-4">
+                        <hr class="flex-grow-1 border-secondary opacity-10">
+                        <span class="mx-3 text-muted" style="font-size: 0.8rem;">快速登入</span>
+                        <hr class="flex-grow-1 border-secondary opacity-10">
+                    </div>
+
+                    <div class="d-flex gap-3 justify-content-center mb-4">
+                        <a href="/login/google" class="social-btn" title="Google 登入">
+                            <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="22" alt="Google" onerror="this.parentElement.innerHTML='<i class=\'fab fa-google text-danger\'></i>'">
+                        </a>
+                        <a href="/login/line" class="social-btn" title="LINE 登入">
+                            <i class="fab fa-line text-success fa-2x"></i>
+                        </a>
+                        <a href="/login/facebook" class="social-btn" title="Facebook 登入">
+                            <i class="fab fa-facebook text-primary fa-xl"></i>
+                        </a>
+                    </div>
+
+                    <div class="text-center">
+                        <small class="text-muted">還沒有帳號？ <a href="{{ url_for('register_page') }}" class="fw-bold text-decoration-none text-morandi-pink">立即註冊</a></small>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </div>
 </div>

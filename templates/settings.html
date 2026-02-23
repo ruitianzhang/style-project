@@ -4,93 +4,113 @@
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-lg-8">
-            <h2 class="fw-bold mb-4" style="color: #6c757d;">⚙️ 設定與隱私</h2>
 
-            <div class="glass-card mb-4 border-start border-4 border-info">
-                <h4 class="fw-bold mb-3 text-info"><i class="fas fa-history me-2"></i>資料保存期限</h4>
+            <div class="text-center mb-5 fade-in">
+                <h2 class="fw-bold" style="color: var(--primary-color);">
+                    <i class="fas fa-cog me-2"></i>設定與隱私權
+                </h2>
+                <p class="text-muted">管理您的數據足跡與 AI 偏好</p>
+            </div>
 
-                <div class="mb-4">
-                    <label class="form-label fw-bold">📸 照片保存策略</label>
-                    <p class="text-muted small">決定您上傳的分析照片要在伺服器保留多久。</p>
-                    <div class="btn-group w-100" role="group">
-                        <input type="radio" class="btn-check" name="photo_policy" id="policy_immediate" value="immediate" {{ 'checked' if user.photo_policy == 'immediate' }}>
-                        <label class="btn btn-outline-secondary" for="policy_immediate">用完即刪</label>
+            <div class="glass-card p-4 mb-4 fade-in">
+                <h5 class="fw-bold text-dark mb-4 border-start border-4 border-primary ps-3">
+                    📸 照片保存策略
+                </h5>
+                <p class="text-muted small mb-3">決定您上傳的穿搭照片要在伺服器保留多久。建議保留 30 天以進行長期風格追蹤。</p>
 
-                        <input type="radio" class="btn-check" name="photo_policy" id="policy_7" value="7_days" {{ 'checked' if user.photo_policy == '7_days' }}>
-                        <label class="btn btn-outline-secondary" for="policy_7">保留 7 天</label>
-
-                        <input type="radio" class="btn-check" name="photo_policy" id="policy_30" value="30_days" {{ 'checked' if user.photo_policy == '30_days' or not user.photo_policy }}>
-                        <label class="btn btn-outline-secondary" for="policy_30">保留 30 天</label>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="selection-card h-100 p-3 rounded-4 border text-center cursor-pointer transition-all d-block position-relative {{ 'active' if user.photo_policy == 'immediate' }}">
+                            <input type="radio" name="photo_policy" value="immediate" class="d-none" {{ 'checked' if user.photo_policy == 'immediate' }} onchange="updateSelection(this)">
+                            <div class="mb-2 text-secondary icon-box"><i class="fas fa-stopwatch fa-2x"></i></div>
+                            <h6 class="fw-bold mb-1">用完即刪</h6>
+                            <small class="text-muted d-block" style="font-size: 0.8rem;">分析完立即銷毀，不留痕跡。</small>
+                            <i class="fas fa-check-circle position-absolute top-0 end-0 m-2 text-primary check-icon"></i>
+                        </label>
                     </div>
-                </div>
 
-                <div class="d-flex justify-content-between align-items-center bg-light p-3 rounded-3">
-                    <div>
-                        <h6 class="fw-bold mb-1 text-danger">⚠️ 緊急清除區</h6>
-                        <small class="text-muted">立即銷毀伺服器上所有屬於您的歷史分析照片。</small>
+                    <div class="col-md-4">
+                        <label class="selection-card h-100 p-3 rounded-4 border text-center cursor-pointer transition-all d-block position-relative {{ 'active' if user.photo_policy == '7_days' }}">
+                            <input type="radio" name="photo_policy" value="7_days" class="d-none" {{ 'checked' if user.photo_policy == '7_days' }} onchange="updateSelection(this)">
+                            <div class="mb-2 text-secondary icon-box"><i class="fas fa-calendar-week fa-2x"></i></div>
+                            <h6 class="fw-bold mb-1">保留 7 天</h6>
+                            <small class="text-muted d-block" style="font-size: 0.8rem;">適合短期回顧一週穿搭。</small>
+                            <i class="fas fa-check-circle position-absolute top-0 end-0 m-2 text-primary check-icon"></i>
+                        </label>
                     </div>
-                    <button class="btn btn-danger btn-sm rounded-pill px-3" onclick="deleteAllPhotos()">
-                        <i class="fas fa-trash-alt me-1"></i> 一鍵清除所有影像
-                    </button>
+
+                    <div class="col-md-4">
+                        <label class="selection-card h-100 p-3 rounded-4 border text-center cursor-pointer transition-all d-block position-relative {{ 'active' if user.photo_policy == '30_days' or not user.photo_policy }}">
+                            <input type="radio" name="photo_policy" value="30_days" class="d-none" {{ 'checked' if user.photo_policy == '30_days' or not user.photo_policy }} onchange="updateSelection(this)">
+                            <div class="mb-2 text-secondary icon-box"><i class="fas fa-calendar-alt fa-2x"></i></div>
+                            <h6 class="fw-bold mb-1">保留 30 天</h6>
+                            <small class="text-muted d-block" style="font-size: 0.8rem;">推薦！可生成月度風格報告。</small>
+                            <i class="fas fa-check-circle position-absolute top-0 end-0 m-2 text-primary check-icon"></i>
+                        </label>
+                    </div>
                 </div>
             </div>
 
-            <div class="glass-card mb-4 border-start border-4 border-primary">
-                <h4 class="fw-bold mb-3 text-primary"><i class="fas fa-robot me-2"></i>AI 模型共創</h4>
-                <div class="form-check form-switch p-3 bg-light rounded-3">
-                    <input class="form-check-input" type="checkbox" id="aiConsentSwitch" {{ 'checked' if user.ai_training_consent }}>
-                    <label class="form-check-label fw-bold" for="aiConsentSwitch">允許匿名資料用於優化推薦模型</label>
-                    <p class="text-muted small mb-0 mt-2">
-                        開啟後，系統將以<span class="text-dark fw-bold">去識別化</span>的方式，使用您的身型數據（不含臉部照片）來優化推薦演算法的準確度。您可以隨時關閉此選項。
-                    </p>
+            <div class="glass-card p-4 mb-4 fade-in">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0 border-start border-4 border-success ps-3">
+                        🤖 AI 模型共創
+                    </h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="aiConsentSwitch" style="width: 3em; height: 1.5em; cursor: pointer;" {{ 'checked' if user.ai_training_consent }}>
+                    </div>
+                </div>
+                <div class="bg-light rounded-3 p-3 d-flex">
+                    <i class="fas fa-info-circle text-success me-3 mt-1 fs-5"></i>
+                    <div class="small text-muted">
+                        <strong>這對我們很有幫助：</strong> 開啟後，系統將以<span class="text-dark fw-bold">匿名去識別化</span>的方式，使用您的身型數據（絕對不含臉部照片）來微調推薦演算法。這能幫助 AI 變得更準確，且您隨時可以關閉。
+                    </div>
                 </div>
             </div>
 
-            <div class="glass-card mb-4 border-start border-4 border-secondary">
-                <h4 class="fw-bold mb-3 text-secondary"><i class="fas fa-door-open me-2"></i>資料權限與帳號管理</h4>
-
-                <div class="d-flex justify-content-between align-items-center mb-4 p-3 border rounded-3 bg-white">
+            <div class="glass-card p-4 mb-5 fade-in">
+                <h5 class="fw-bold text-dark mb-4 border-start border-4 border-info ps-3">
+                    📦 資料可攜權
+                </h5>
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="fw-bold mb-1"><i class="fas fa-box-open me-2"></i>打包下載我的資料</h6>
-                        <p class="text-muted small mb-0">
-                            您的數據屬於您。匯出所有分析紀錄、穿搭日記與個人設定 (JSON 格式)。
-                        </p>
+                        <h6 class="fw-bold mb-1">打包下載我的資料</h6>
+                        <p class="text-muted small mb-0">匯出所有分析紀錄、穿搭日記與個人設定 (JSON 格式)。</p>
                     </div>
-                    <a href="/api/download_my_data" class="btn btn-dark rounded-pill px-4">
-                        <i class="fas fa-download me-1"></i> 匯出
+                    <a href="/api/download_my_data" class="btn btn-outline-dark rounded-pill px-4 hover-scale">
+                        <i class="fas fa-download me-2"></i>匯出資料
                     </a>
                 </div>
-
-                <div class="accordion accordion-flush" id="deleteAccordion">
-                    <div class="accordion-item bg-transparent">
-                        <h2 class="accordion-header">
-                            <button class="accordion-button collapsed bg-danger bg-opacity-10 text-danger rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#deleteCollapse">
-                                <i class="fas fa-exclamation-triangle me-2"></i> 我想刪除帳號
-                            </button>
-                        </h2>
-                        <div id="deleteCollapse" class="accordion-collapse collapse" data-bs-parent="#deleteAccordion">
-                            <div class="accordion-body text-muted small pt-3">
-                                <p class="fw-bold text-dark mb-2">⚠️ 刪除帳號須知：</p>
-                                <ul class="mb-3 ps-3">
-                                    <li><strong>立即生效：</strong>您的登入權限將立即終止。</li>
-                                    <li><strong>資料移除：</strong>您的照片與個資將在 24 小時內從伺服器物理刪除。</li>
-                                    <li><strong>不綁架：</strong>我們不會保留您的任何備份。建議您先執行上方的「打包下載」。</li>
-                                </ul>
-                                <div class="text-end">
-                                    <button class="btn btn-danger rounded-pill px-4" onclick="deleteAccount()">
-                                        確認永久刪除
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
 
-            <div class="text-center mt-5">
-                <button class="btn btn-style btn-lg rounded-pill px-5 shadow" onclick="saveSettings()">
-                    <i class="fas fa-save me-2"></i> 儲存所有變更
+            <div class="d-grid mb-5">
+                <button class="btn btn-primary rounded-pill py-3 shadow fw-bold fs-5 hover-scale" id="saveBtn" onclick="saveSettings()">
+                    <i class="fas fa-save me-2"></i>儲存變更設定
                 </button>
+            </div>
+
+            <div class="border border-danger border-opacity-25 rounded-4 p-4 bg-danger bg-opacity-10 fade-in">
+                <h5 class="fw-bold text-danger mb-4"><i class="fas fa-exclamation-triangle me-2"></i>危險區域 (Danger Zone)</h5>
+
+                <div class="d-flex justify-content-between align-items-center mb-4 pb-4 border-bottom border-danger border-opacity-25">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-1">清除所有歷史照片</h6>
+                        <small class="text-danger opacity-75">此動作無法復原，您的文字分析紀錄將會保留。</small>
+                    </div>
+                    <button class="btn btn-outline-danger rounded-pill btn-sm px-3" onclick="deleteAllPhotos(this)">
+                        清除照片
+                    </button>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-1">永久刪除帳號</h6>
+                        <small class="text-danger opacity-75">您的所有資料將在 24 小時內物理銷毀。</small>
+                    </div>
+                    <button class="btn btn-danger rounded-pill btn-sm px-3 shadow-sm" onclick="deleteAccount(this)">
+                        刪除帳號
+                    </button>
+                </div>
             </div>
 
         </div>
@@ -98,8 +118,34 @@
 </div>
 
 <script>
+// 1. 選項卡視覺切換邏輯
+function updateSelection(radio) {
+    // 移除所有 active
+    document.querySelectorAll('.selection-card').forEach(el => {
+        el.classList.remove('active');
+        el.style.borderColor = '#dee2e6';
+        el.style.backgroundColor = 'white';
+        el.querySelector('.icon-box').classList.remove('text-primary');
+        el.querySelector('.check-icon').style.opacity = '0';
+    });
+
+    // 加上當前 active
+    const card = radio.closest('.selection-card');
+    card.classList.add('active');
+    // 這裡的 style 也可以寫在 CSS .selection-card.active 裡，這邊用 JS 強制觸發
+    card.style.borderColor = 'var(--primary-color)';
+    card.style.backgroundColor = 'rgba(212, 165, 165, 0.05)';
+    card.querySelector('.icon-box').classList.add('text-primary');
+    card.querySelector('.check-icon').style.opacity = '1';
+}
+
+// 2. 儲存設定
 function saveSettings() {
-    // 取得選中的 policy
+    const btn = document.getElementById('saveBtn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>儲存中...';
+
     let policy = document.querySelector('input[name="photo_policy"]:checked').value;
     let aiConsent = document.getElementById('aiConsentSwitch').checked;
 
@@ -110,24 +156,47 @@ function saveSettings() {
     })
     .then(r => r.json())
     .then(data => {
-        alert(data.msg);
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-2"></i>設定已更新';
+            setTimeout(() => btn.innerHTML = originalText, 2000);
+        }, 500); // 模擬一點延遲感
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '儲存失敗';
     });
 }
 
-function deleteAllPhotos() {
-    if(!confirm("確定要永久刪除所有歷史照片嗎？此動作無法復原！(您的分析數據文字會保留)")) return;
+// 3. 刪除照片
+function deleteAllPhotos(btn) {
+    if(!confirm("⚠️ 嚴重警告：確定要永久刪除所有歷史照片嗎？此動作無法復原！")) return;
+
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '清除中...';
+    btn.disabled = true;
 
     fetch('/api/delete_all_photos', { method: 'POST' })
     .then(r => r.json())
     .then(data => {
         alert(data.msg);
+        btn.innerHTML = '已清除';
+    })
+    .finally(() => {
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }, 2000);
     });
 }
 
-function deleteAccount() {
-    // 雙重確認機制，防止誤刪
-    let check = prompt("請輸入 'DELETE' 以確認刪除帳號。此動作無法復原。");
+// 4. 刪除帳號 (雙重驗證)
+function deleteAccount(btn) {
+    let check = prompt("請輸入 'DELETE' 以確認刪除帳號。此動作無法復原，您將被立即登出。");
     if (check === 'DELETE') {
+        btn.innerHTML = '刪除中...';
+        btn.disabled = true;
+
         fetch('/api/delete_account', { method: 'POST' })
         .then(r => r.json())
         .then(data => {
@@ -139,4 +208,31 @@ function deleteAccount() {
     }
 }
 </script>
+
+<style>
+    .fade-in { animation: fadeIn 0.6s ease-out; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+    /* 選擇卡片樣式 */
+    .selection-card {
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+    }
+    .selection-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    }
+    /* 預設隱藏勾勾 */
+    .check-icon { opacity: 0; transition: opacity 0.3s; }
+
+    /* Active 狀態 CSS 補強 (JS 也有控制，這裡做備份) */
+    .selection-card.active {
+        border-color: var(--primary-color) !important;
+        background-color: rgba(212, 165, 165, 0.05);
+    }
+    .selection-card.active .check-icon { opacity: 1; }
+    .selection-card.active .icon-box { color: var(--primary-color) !important; }
+
+    .hover-scale:hover { transform: scale(1.02); transition: 0.2s; }
+</style>
 {% endblock %}

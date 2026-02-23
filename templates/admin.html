@@ -3,148 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Style | 系統管理後台</title>
+    <title>Smart Style | 智能決策中樞</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
+        /* =========================================
+           1. 全域變數與主題 (Theme Variables)
+           優化：專業深色側邊欄 + 莫蘭迪粉強調色
+           ========================================= */
         :root {
-            --primary-color: #D4A5A5;
-            --secondary-color: #F8EDEB;
+            /* 品牌核心色 */
+            --brand-pink: #D4A5A5;       /* 莫蘭迪粉 (強調色) */
+            --brand-dark: #2c3e50;       /* 深藍灰 (側邊欄/標題) */
+            --brand-light: #f8f9fa;      /* 淺灰 (背景) */
+
+            /* 功能色 (低飽和度) */
+            --color-success: #709f7a;    /* 鼠尾草綠 */
+            --color-warning: #e0b06b;    /* 薑黃色 */
+            --color-danger: #c76c6c;     /* 磚紅色 */
+            --color-info: #7f9cc6;       /* 霧霾藍 */
+
+            --sidebar-width: 260px;
             --glass-bg: rgba(255, 255, 255, 0.95);
-            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
         }
 
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background: var(--bg-gradient);
             min-height: 100vh;
-            color: #444;
+            color: #555; /* 字體顏色改為深灰，比較不刺眼 */
+            overflow-x: hidden;
         }
 
-        /* 側邊欄樣式 */
+        /* =========================================
+           2. 側邊欄樣式 (Sidebar)
+           ========================================= */
         .sidebar {
-            width: 260px;
-            background: rgba(52, 58, 64, 0.95);
-            backdrop-filter: blur(10px);
+            width: var(--sidebar-width);
+            background: var(--brand-dark); /* 使用深藍灰 */
             min-height: 100vh;
-            color: white;
+            color: #ecf0f1;
             position: fixed;
-            transition: all 0.3s;
+            top: 0;
+            left: 0;
             z-index: 1000;
+            padding-top: 2rem;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.05);
         }
 
-        .sidebar-link {
-            color: rgba(255,255,255,0.7);
-            padding: 12px 20px;
-            display: block;
-            text-decoration: none;
+        .sidebar-brand {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: #fff;
+            padding: 0 1.5rem;
+            margin-bottom: 2.5rem;
+            display: flex;
+            align-items: center;
+            letter-spacing: 1px;
+        }
+
+        .nav-pills .nav-link {
+            color: rgba(255,255,255,0.6);
             border-radius: 0 50px 50px 0;
-            margin-bottom: 5px;
-            transition: 0.3s;
-            background: transparent;
-            width: 100%;
-            cursor: pointer;
+            padding: 12px 25px;
+            margin-bottom: 8px;
+            transition: all 0.3s;
+            font-weight: 500;
+            width: 92%;
+            display: flex;
+            align-items: center;
         }
 
-        .sidebar-link:hover, .sidebar-link.active {
-            background: var(--primary-color);
-            color: white;
+        .nav-pills .nav-link:hover {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            padding-left: 30px; /* 滑動效果 */
+        }
+
+        /* 激活狀態：改用莫蘭迪粉 */
+        .nav-pills .nav-link.active {
+            background: var(--brand-pink);
+            color: #fff;
             box-shadow: 0 4px 15px rgba(212, 165, 165, 0.4);
         }
 
-        /* 主內容區 */
+        .nav-pills .nav-link i {
+            width: 25px;
+            text-align: center;
+            margin-right: 12px;
+        }
+
+        /* =========================================
+           3. 主內容區 (Main Content)
+           ========================================= */
         .main-content {
-            margin-left: 260px;
-            padding: 30px;
+            margin-left: var(--sidebar-width);
+            padding: 2.5rem;
         }
 
-        /* 毛玻璃卡片 */
+        /* 毛玻璃卡片優化 */
         .glass-card {
-            background: var(--glass-bg);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
-            padding: 1.5rem;
+            background: #fff;
+            border-radius: 16px;
+            border: 1px solid rgba(0,0,0,0.03);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.03);
+            padding: 1.8rem;
             margin-bottom: 1.5rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .stat-card {
-            transition: transform 0.3s;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
+        .glass-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
         }
 
-        /* 圓形進度條 SVG */
-        .circular-chart { display: block; margin: 10px auto; max-width: 80%; max-height: 250px; }
-        .circle-bg { fill: none; stroke: #eee; stroke-width: 3.8; }
-        .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; animation: progress 1s ease-out forwards; }
-        @keyframes progress { 0% { stroke-dasharray: 0 100; } }
-        .percentage { fill: #666; font-family: sans-serif; font-weight: bold; font-size: 0.5em; text-anchor: middle; }
+        /* 統計數字樣式 */
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--brand-dark);
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        /* 表格優化 */
+        .table {
+            --bs-table-bg: transparent;
+        }
+        .table-hover tbody tr:hover {
+            background-color: rgba(212, 165, 165, 0.05); /* 淡粉色 hover */
+        }
+        thead.bg-light th {
+            background-color: #f8f9fa;
+            color: #666;
+            font-weight: 600;
+            border-bottom: 2px solid #eee;
+        }
+
+        /* 覆寫 Bootstrap 按鈕顏色為莫蘭迪色系 */
+        .btn-primary { background-color: var(--brand-dark); border-color: var(--brand-dark); }
+        .btn-primary:hover { background-color: #1a252f; border-color: #1a252f; }
+
+        .btn-warning { background-color: var(--color-warning); border-color: var(--color-warning); color: #fff; }
+        .btn-success { background-color: var(--color-success); border-color: var(--color-success); }
+        .btn-danger { background-color: var(--color-danger); border-color: var(--color-danger); }
+
+        .text-primary { color: var(--brand-dark) !important; }
+        .text-success { color: var(--color-success) !important; }
+        .text-danger { color: var(--color-danger) !important; }
+        .text-warning { color: var(--color-warning) !important; }
     </style>
 </head>
 <body>
 
 <div class="d-flex">
-    <div class="sidebar d-flex flex-column py-4 pe-3">
-        <h4 class="mb-5 ps-4 fw-bold text-white">
-            <i class="fas fa-shield-alt me-2"></i>Admin Panel
-        </h4>
+    <div class="sidebar d-flex flex-column">
+        <div class="sidebar-brand">
+            <i class="fas fa-layer-group me-3" style="color: var(--brand-pink);"></i> Style Admin
+        </div>
 
         <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist">
-            <button class="sidebar-link border-0 text-start active" data-bs-toggle="pill" data-bs-target="#tab-analytics">
-                <i class="fas fa-tachometer-alt me-3" style="width: 20px;"></i>營運總覽
-            </button>
-            <button class="sidebar-link border-0 text-start" data-bs-toggle="pill" data-bs-target="#tab-ai">
-                <i class="fas fa-brain me-3" style="width: 20px;"></i>AI 監控 & A/B
+            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-analytics">
+                <i class="fas fa-chart-pie"></i> 營運總覽
             </button>
 
-            <button class="sidebar-link border-0 text-start" data-bs-toggle="pill" data-bs-target="#tab-research">
-                <i class="fas fa-microscope me-3" style="width: 20px;"></i>研究數據實驗室
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-deep-data">
+                <i class="fas fa-database"></i> 深度數據洞察
             </button>
 
-            <button class="sidebar-link border-0 text-start" data-bs-toggle="pill" data-bs-target="#tab-vitality">
-                <i class="fas fa-water me-3" style="width: 20px;"></i>產品活水泉源
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-ai">
+                <i class="fas fa-robot"></i> AI 監控 & A/B
             </button>
 
-            <button class="sidebar-link border-0 text-start" data-bs-toggle="pill" data-bs-target="#tab-lifecycle">
-                <i class="fas fa-recycle me-3" style="width: 20px;"></i>生命週期管理
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-trends">
+                <i class="fas fa-sliders-h"></i> 趨勢權重管理
             </button>
 
-            <hr class="border-secondary opacity-50 my-2 mx-3">
+            <hr class="border-secondary opacity-25 my-2 mx-3">
 
-            <button class="sidebar-link border-0 text-start" data-bs-toggle="pill" data-bs-target="#tab-shop">
-                <i class="fas fa-store me-3" style="width: 20px;"></i>商城管理
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-shop">
+                <i class="fas fa-store"></i> 商城商品管理
             </button>
-            <button class="sidebar-link border-0 text-start" data-bs-toggle="pill" data-bs-target="#tab-users">
-                <i class="fas fa-users-cog me-3" style="width: 20px;"></i>用戶與檢舉
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-users">
+                <i class="fas fa-users-cog"></i> 用戶與檢舉
             </button>
         </div>
 
-        <div class="mt-auto ps-4">
-            <a href="{{ url_for('index') }}" class="text-warning text-decoration-none small mb-3 d-block">
-                <i class="fas fa-external-link-alt me-2"></i>回前台首頁
+        <div class="mt-auto p-4">
+            <a href="{{ url_for('index') }}" class="btn btn-outline-light w-100 btn-sm mb-2 opacity-75">
+                <i class="fas fa-home me-2"></i>回前台首頁
             </a>
-            <a href="{{ url_for('logout') }}" class="text-danger text-decoration-none small d-block">
-                <i class="fas fa-sign-out-alt me-2"></i>登出系統
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-danger w-100 btn-sm text-white border-danger opacity-75" style="border-color: rgba(255,255,255,0.3) !important;">
+                <i class="fas fa-sign-out-alt me-2"></i>登出
             </a>
         </div>
     </div>
 
     <div class="main-content flex-grow-1">
 
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="fw-bold text-secondary">Dashboard</h3>
-            <div class="d-flex align-items-center gap-3">
-                <span class="badge bg-white text-dark shadow-sm px-3 py-2 rounded-pill">
-                    <i class="fas fa-clock me-1"></i> 系統時間：<span id="sysTime"></span>
-                </span>
-                <div class="bg-white rounded-circle shadow-sm d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                    <i class="fas fa-user-shield text-primary"></i>
-                </div>
+        <div class="d-flex justify-content-between align-items-center mb-5">
+            <div>
+                <h3 class="fw-bold mb-1" style="color: var(--brand-dark);">Dashboard</h3>
+                <small class="text-muted">歡迎回來，管理員 <span class="fw-bold text-dark">{{ session['user_name'] }}</span></small>
+            </div>
+            <div class="bg-white px-4 py-2 rounded-pill shadow-sm d-flex align-items-center border">
+                <i class="far fa-clock me-2" style="color: var(--brand-pink);"></i>
+                <span id="sysTime" class="fw-bold" style="color: #666; font-size: 0.9rem;">Loading...</span>
             </div>
         </div>
 
@@ -153,329 +228,204 @@
             <div class="tab-pane fade show active" id="tab-analytics">
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
-                        <div class="glass-card stat-card border-start border-4 border-primary">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-muted mb-1">總註冊用戶</h6>
-                                    <h2 class="fw-bold mb-0 text-primary">{{ stats.users }}</h2>
-                                </div>
-                                <i class="fas fa-users fa-3x text-primary opacity-25"></i>
-                            </div>
+                        <div class="glass-card h-100 border-start border-4" style="border-color: var(--brand-dark) !important;">
+                            <div class="stat-label">總註冊用戶</div>
+                            <div class="stat-value">{{ stats.users }}</div>
+                            <div class="mt-2 text-success small"><i class="fas fa-arrow-up"></i> 持續成長中</div>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="glass-card stat-card border-start border-4 border-success">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-muted mb-1">社群貼文數</h6>
-                                    <h2 class="fw-bold mb-0 text-success">{{ stats.posts }}</h2>
-                                </div>
-                                <i class="fas fa-camera fa-3x text-success opacity-25"></i>
-                            </div>
+                        <div class="glass-card h-100 border-start border-4" style="border-color: var(--color-success) !important;">
+                            <div class="stat-label">社群貼文數</div>
+                            <div class="stat-value text-success">{{ stats.posts }}</div>
+                            <div class="mt-2 text-muted small">用戶活躍度指標</div>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="glass-card stat-card border-start border-4 border-danger">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-muted mb-1">待處理檢舉</h6>
-                                    <h2 class="fw-bold mb-0 text-danger">{{ stats.reports }}</h2>
-                                </div>
-                                <i class="fas fa-exclamation-triangle fa-3x text-danger opacity-25"></i>
-                            </div>
+                        <div class="glass-card h-100 border-start border-4" style="border-color: var(--color-danger) !important;">
+                            <div class="stat-label">待處理檢舉</div>
+                            <div class="stat-value text-danger">{{ stats.reports }}</div>
+                            <div class="mt-2 text-danger small fw-bold">需優先處理</div>
                         </div>
                     </div>
                 </div>
 
                 <div class="glass-card">
-                    <h5 class="fw-bold mb-3">🚀 系統狀態</h5>
-                    <div class="progress mb-3" style="height: 25px;">
-                        <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">系統運行正常</div>
+                    <h5 class="fw-bold mb-3 text-dark">🚀 系統狀態檢查</h5>
+                    <div class="d-flex align-items-center mb-2 text-secondary">
+                        <span class="badge bg-success me-2">正常</span> 資料庫連線 (SQLite)
                     </div>
-                    <p class="text-muted small">資料庫連線：<span class="text-success fw-bold">Connected</span> | 伺服器負載：<span class="text-success fw-bold">Low</span></p>
+                    <div class="d-flex align-items-center mb-2 text-secondary">
+                        <span class="badge bg-success me-2">正常</span> AI 推薦引擎 (Rule-based)
+                    </div>
+                    <div class="progress mt-3" style="height: 8px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%; background-color: var(--color-info);"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="tab-deep-data">
+                <div class="alert alert-light border shadow-sm mb-4 d-flex align-items-center" style="background-color: #fff;">
+                    <i class="fas fa-info-circle me-3 fa-lg" style="color: var(--brand-pink);"></i>
+                    <span class="text-secondary">這些數據來自真實用戶資料，用於訓練 AI 模型以提供更精準的個性化推薦。</span>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="glass-card h-100">
+                            <h5 class="fw-bold mb-4 text-dark">👥 用戶性別結構</h5>
+                            <div style="height: 250px; position: relative;">
+                                <canvas id="genderChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="glass-card h-100">
+                            <h5 class="fw-bold mb-4 text-dark">🎂 年齡層分佈</h5>
+                            <div style="height: 250px; position: relative;">
+                                <canvas id="ageChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="glass-card">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark"><i class="fas fa-dna me-2 text-danger"></i>風格 DNA 關聯熱圖</h5>
+                                <button class="btn btn-sm btn-outline-dark rounded-pill">
+                                    <i class="fas fa-download me-1"></i> 匯出 CSV
+                                </button>
+                            </div>
+                            <p class="text-muted small">顯示「身形」與「推薦風格」的關聯強度。</p>
+
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th>身形特徵 (Body Shape)</th>
+                                            <th>主推風格 (Archetype)</th>
+                                            <th>匹配次數</th>
+                                            <th>關聯強度</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% if correlation_data %}
+                                            {% for row in correlation_data %}
+                                            <tr>
+                                                <td><span class="badge bg-light text-dark border">{{ row[0] }}</span></td>
+                                                <td class="fw-bold" style="color: var(--brand-dark);">{{ row[1] }}</td>
+                                                <td>{{ row[2] }}</td>
+                                                <td>
+                                                    <div class="progress" style="height: 8px; width: 100px;">
+                                                        <div class="progress-bar" style="width: {{ (row[2] / 5) * 10 }}%; background-color: var(--color-info);"></div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                            <tr><td colspan="4" class="text-center py-4 text-muted">目前數據不足</td></tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="tab-pane fade" id="tab-ai">
                 <div class="row g-4">
-                    <div class="col-md-5">
-                        <div class="glass-card h-100 text-center d-flex flex-column justify-content-center">
-                            <h5 class="fw-bold text-muted mb-4">🤖 AI 模型誤判回報率</h5>
-
-                            <div class="position-relative d-inline-block mx-auto" style="width: 150px; height: 150px;">
-                                <svg viewBox="0 0 36 36" class="circular-chart text-danger w-100 h-100">
-                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#eee" stroke-width="2.5" />
-                                    <path class="circle" stroke-dasharray="{{ ai_stats.error_rate }}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#D4A5A5" stroke-width="2.5" />
-                                    <text x="18" y="20.35" class="percentage fw-bold" text-anchor="middle" font-size="0.5em" fill="#444">{{ ai_stats.error_rate }}%</text>
-                                </svg>
-                            </div>
-
-                            <p class="text-muted mt-3 small">
-                                基於 {{ ai_stats.total }} 次分析的使用者修正回饋。<br>
-                                <span class="text-success"><i class="fas fa-check"></i> 數值低於 5% 為優良狀態</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="col-md-7">
+                    <div class="col-md-6">
                         <div class="glass-card h-100">
-                            <div class="d-flex justify-content-between align-items-center mb-4">
-                                <h5 class="fw-bold mb-0">⚖️ A/B 測試：推薦語氣轉換率</h5>
-                                <span class="badge bg-primary">商城點擊率</span>
-                            </div>
-
-                            <canvas id="abChart" style="max-height: 250px;"></canvas>
-
-                            <div class="mt-4 row text-center">
+                            <h5 class="fw-bold mb-4 text-dark">⚖️ A/B 測試：語氣轉化率</h5>
+                            <canvas id="abChart" height="200"></canvas>
+                            <div class="row mt-4 text-center">
                                 <div class="col-6 border-end">
-                                    <h6 class="text-primary fw-bold">方案 A (專業)</h6>
-                                    <div class="h4 fw-bold">{{ ai_stats.ab_test.A.rate }}%</div>
-                                    <small class="text-muted">樣本數: {{ ai_stats.ab_test.A.count }}</small>
+                                    <h6 class="text-primary fw-bold">Model A (專業)</h6>
+                                    <div class="h3 mb-0">{{ ai_stats.ab_test.A.rate }}%</div>
+                                    <small class="text-muted">轉化率</small>
                                 </div>
                                 <div class="col-6">
-                                    <h6 class="text-success fw-bold">方案 B (親切)</h6>
-                                    <div class="h4 fw-bold">{{ ai_stats.ab_test.B.rate }}%</div>
-                                    <small class="text-muted">樣本數: {{ ai_stats.ab_test.B.count }}</small>
+                                    <h6 class="text-success fw-bold">Model B (親切)</h6>
+                                    <div class="h3 mb-0">{{ ai_stats.ab_test.B.rate }}%</div>
+                                    <small class="text-muted">轉化率</small>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div class="tab-pane fade" id="tab-research">
-                <div class="row g-4">
-                    <div class="col-md-8">
+                    <div class="col-md-6">
                         <div class="glass-card h-100">
-                            <h5 class="fw-bold mb-4" style="color: #6c757d;">📈 身形審美趨勢追蹤</h5>
-                            <canvas id="trendChart" style="height: 300px;"></canvas>
-                            <div class="mt-3 text-muted small">
-                                <i class="fas fa-info-circle me-1"></i>
-                                觀察重點：從 2025 Q4 到 2026 Q1，使用者對於「Oversize」與「Athleisure」的偏好交叉點，反映了後疫情時代的舒適追求。
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-4">
-                         <div class="glass-card h-100 bg-light">
-                            <h5 class="fw-bold mb-3">🎨 世代色彩偏好</h5>
-                            <ul class="list-group list-group-flush bg-transparent">
-                                <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <span class="badge bg-dark">Gen Z</span>
-                                        <span class="ms-2">Y2K / 螢光色</span>
+                            <h5 class="fw-bold mb-4 text-dark">⚠️ 公平性檢測 (Fairness Audit)</h5>
+                            {% if fairness_data %}
+                                {% for item in fairness_data %}
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span class="fw-bold text-secondary">{{ item.type }}</span>
+                                        <span class="{{ 'text-danger' if item.rate > 25 else 'text-success' }}">
+                                            誤判率: {{ item.rate }}%
+                                        </span>
                                     </div>
-                                    <span class="text-success fw-bold">↑ 15%</span>
-                                </li>
-                                <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <span class="badge bg-secondary">Millennials</span>
-                                        <span class="ms-2">大地色 / 極簡</span>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar {{ 'bg-danger' if item.rate > 25 else 'bg-success' }}"
+                                             role="progressbar" style="width: {{ item.rate }}%"></div>
                                     </div>
-                                    <span class="text-muted">- 2%</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div class="col-12">
-                        <div class="glass-card border-warning border-2">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold text-dark">⚖️ AI 公平性檢測報告 (Fairness Audit)</h5>
-                                <span class="badge bg-warning text-dark">Beta</span>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <canvas id="fairnessRadar"></canvas>
-                                </div>
-                                <div class="col-md-6 d-flex flex-column justify-content-center">
-                                    <div class="alert alert-secondary border-0">
-                                        <h6 class="fw-bold"><i class="fas fa-exclamation-triangle me-2"></i>潛在偏差警示</h6>
-                                        <p class="mb-0 small">
-                                            系統偵測到針對 <strong>「蘋果型身材」</strong> 的推薦結果中，高達 85% 集中於「遮掩腹部」，缺乏多樣性（如展示腿部優勢）。
-                                            <br><br>
-                                            <strong>建議修正：</strong> 調整權重，增加「強調線條」類型的穿搭建議比例。
-                                        </p>
-                                    </div>
-                                    <div class="mt-3">
-                                        <h6 class="fw-bold small text-muted">目前數據指標：</h6>
-                                        {% if fairness_data %}
-                                            {% for item in fairness_data %}
-                                            <div class="d-flex justify-content-between small border-bottom py-1">
-                                                <span>{{ item.body_type }}</span>
-                                                <span class="{{ 'text-danger' if item.restrictive_rate > 0.8 else 'text-success' }}">
-                                                    限制性建議: {{ (item.restrictive_rate * 100)|int }}%
-                                                </span>
-                                            </div>
-                                            {% endfor %}
-                                        {% else %}
-                                            <small class="text-muted">尚無足夠數據進行分析</small>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-12">
-                        <div class="glass-card bg-light border-0">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h5 class="fw-bold mb-1">🎓 學術研究數據輸出</h5>
-                                    <p class="text-muted small mb-0">
-                                        下載去識別化的原始數據 (JSON)，包含身形分佈統計與穿搭心理評分，可用於 SPSS 或 Python 進行後續分析。
-                                    </p>
-                                </div>
-                                <a href="/api/research/export_report" class="btn btn-dark rounded-pill px-4">
-                                    <i class="fas fa-file-download me-2"></i> 匯出 Dataset
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-            </div>
-
-            <div class="tab-pane fade" id="tab-vitality">
-                <div class="row g-4">
-                    <div class="col-md-5">
-                        <div class="glass-card h-100 border-start border-4 border-warning">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h5 class="fw-bold text-dark">🌊 當季趨勢加權 (Seasonality)</h5>
-                                <button class="btn btn-sm btn-warning rounded-pill" onclick="saveTrends()">更新權重</button>
-                            </div>
-                            <p class="text-muted small">調整風格權重以影響推薦演算法。低於 1.0 代表過時風格 (降權)。</p>
-
-                            <form id="trendForm">
-                                {% for style, weight in current_trends.items() %}
-                                <div class="mb-3">
-                                    <label class="form-label d-flex justify-content-between">
-                                        <span class="fw-bold">{{ style }}</span>
-                                        <span class="text-primary weight-val">{{ weight }}x</span>
-                                    </label>
-                                    <input type="range" class="form-range trend-slider" min="0.5" max="2.0" step="0.1"
-                                           value="{{ weight }}" data-style="{{ style }}" oninput="this.previousElementSibling.querySelector('.weight-val').innerText = this.value + 'x'">
-                                </div>
-                                {% else %}
-                                <div class="text-muted text-center py-3">請先初始化資料庫權重</div>
-                                {% endfor %}
-
-                                <div class="input-group mt-3">
-                                    <input type="text" class="form-control" id="newTrendName" placeholder="新增風格 (如: Cyberpunk)">
-                                    <button class="btn btn-outline-secondary" type="button" onclick="addTrendRow()">+</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                    <div class="col-md-7">
-                        <div class="glass-card h-100 border-start border-4 border-success">
-                            <h5 class="fw-bold mb-3 text-dark">🤝 使用者共創提案 (Co-creation)</h5>
-
-                            {% if proposals %}
-                            <div class="list-group list-group-flush overflow-auto" style="max-height: 400px;">
-                                {% for p in proposals %}
-                                <div class="list-group-item bg-transparent px-0 py-3" id="prop-{{ p.id }}">
-                                    <div class="d-flex w-100 justify-content-between">
-                                        <h6 class="mb-1 fw-bold text-primary">#{{ p.tag_name }}</h6>
-                                        <small class="text-muted">{{ p.created_at[:10] }}</small>
-                                    </div>
-                                    <p class="mb-1 text-dark small">{{ p.description }}</p>
-                                    <small class="text-muted">提案人: {{ p.user_name }}</small>
-
-                                    <div class="mt-2 d-flex gap-2">
-                                        <button class="btn btn-sm btn-success rounded-pill px-3" onclick="reviewProp({{ p.id }}, 'approve')">
-                                            <i class="fas fa-check me-1"></i> 採納
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="reviewProp({{ p.id }}, 'reject')">
-                                            <i class="fas fa-times me-1"></i> 婉拒
-                                        </button>
-                                    </div>
+                                    {% if item.rate > 25 %}
+                                    <small class="text-danger"><i class="fas fa-exclamation-triangle"></i> 偏差過高，建議調整模型參數</small>
+                                    {% endif %}
                                 </div>
                                 {% endfor %}
-                            </div>
                             {% else %}
-                            <div class="text-center py-5 text-muted">
-                                <i class="fas fa-inbox fa-3x mb-3 opacity-25"></i>
-                                <p>目前沒有待審核的提案</p>
-                            </div>
+                                <p class="text-muted text-center py-5">尚無足夠的錯誤回報數據</p>
                             {% endif %}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="tab-lifecycle">
+            <div class="tab-pane fade" id="tab-trends">
                 <div class="row g-4">
                     <div class="col-md-6">
-                        <div class="glass-card h-100">
-                            <h5 class="fw-bold mb-4">♻️ 產品功能退場管理</h5>
-                            <table class="table table-hover align-middle">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>功能模組</th>
-                                        <th>使用率</th>
-                                        <th>狀態</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for flag in feature_flags %}
-                                    <tr>
-                                        <td class="fw-bold">{{ flag.name }}</td>
-                                        <td>
-                                            {% if flag.usage == 'High' %}<span class="text-success">高</span>
-                                            {% elif flag.usage == 'Low' %}<span class="text-warning">低</span>
-                                            {% else %}<span class="text-muted">無</span>{% endif %}
-                                        </td>
-                                        <td>
-                                            {% if flag.status == 'active' %}<span class="badge bg-success">運行中</span>
-                                            {% else %}<span class="badge bg-secondary">已退場</span>{% endif %}
-                                        </td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-dark rounded-pill">設定</button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                        <div class="glass-card h-100 border-start border-4" style="border-color: var(--color-warning) !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="fw-bold text-dark">🌊 風格權重調整 (Seasonality)</h5>
+                                <button class="btn btn-warning btn-sm text-white fw-bold shadow-sm" onclick="saveTrends()">
+                                    <i class="fas fa-save me-1"></i>儲存設定
+                                </button>
+                            </div>
+
+                            <form id="trendForm">
+                                {% for style, weight in current_trends.items() %}
+                                <div class="mb-3">
+                                    <label class="form-label d-flex justify-content-between">
+                                        <span class="fw-bold text-secondary">{{ style }}</span>
+                                        <span class="text-primary weight-val">{{ weight }}x</span>
+                                    </label>
+                                    <input type="range" class="form-range trend-slider" min="0.5" max="2.0" step="0.1"
+                                           value="{{ weight }}" data-style="{{ style }}" style="accent-color: var(--brand-dark);"
+                                           oninput="this.previousElementSibling.querySelector('.weight-val').innerText = this.value + 'x'">
+                                </div>
+                                {% else %}
+                                <div class="text-center text-muted py-3">
+                                    請先執行 <a href="/setup_db_final">資料庫初始化</a> 以載入預設風格。
+                                </div>
+                                {% endfor %}
+
+                                <hr>
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="newTrendName" placeholder="新增風格 (如: Cyberpunk)">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="addTrendRow()">+</button>
+                                </div>
+                            </form>
                         </div>
                     </div>
-
                     <div class="col-md-6">
                         <div class="glass-card h-100">
-                            <h5 class="fw-bold mb-4">🏆 用戶成就系統預覽</h5>
-                            <div class="d-flex flex-column gap-3">
-                                <div class="d-flex align-items-center p-3 bg-white rounded shadow-sm border-start border-4 border-primary">
-                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
-                                        <i class="fas fa-magic"></i>
-                                    </div>
-                                    <div>
-                                        <h6 class="fw-bold mb-0">初次覺醒</h6>
-                                        <small class="text-muted">完成第一次 AI 風格分析</small>
-                                    </div>
-                                </div>
-
-                                <div class="d-flex align-items-center p-3 bg-white rounded shadow-sm border-start border-4 border-warning">
-                                    <div class="bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
-                                        <i class="fas fa-star"></i>
-                                    </div>
-                                    <div>
-                                        <h6 class="fw-bold mb-0">風格探索者</h6>
-                                        <small class="text-muted">嘗試 3 種不同風格建議</small>
-                                    </div>
-                                </div>
-
-                                <div class="d-flex align-items-center p-3 bg-white rounded shadow-sm border-start border-4 border-success">
-                                    <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px;">
-                                        <i class="fas fa-chart-line"></i>
-                                    </div>
-                                    <div>
-                                        <h6 class="fw-bold mb-0">自信蛻變</h6>
-                                        <small class="text-muted">連續 30 天記錄穿搭且滿意度上升</small>
-                                    </div>
-                                </div>
-                            </div>
+                             <h5 class="fw-bold mb-3 text-dark">📝 用戶共創提案</h5>
+                             <div class="alert alert-secondary text-center bg-light border-0">
+                                 目前暫無待審核的風格提案
+                             </div>
                         </div>
                     </div>
                 </div>
@@ -483,52 +433,47 @@
 
             <div class="tab-pane fade" id="tab-shop">
                 <div class="glass-card mb-4">
-                    <h5 class="fw-bold mb-3"><i class="fas fa-plus-circle me-2 text-success"></i>上架新商品</h5>
+                    <h5 class="fw-bold mb-3 text-dark"><i class="fas fa-plus-circle me-2 text-success"></i>上架新商品</h5>
                     <form action="/admin/add_item" method="POST" enctype="multipart/form-data" class="row g-3">
                         <div class="col-md-4">
-                            <input type="text" name="title" class="form-control" placeholder="商品名稱 (如: 韓系西裝)" required>
+                            <label class="form-label small text-muted">商品名稱</label>
+                            <input type="text" name="title" class="form-control" required>
                         </div>
                         <div class="col-md-2">
-                            <input type="text" name="brand" class="form-control" placeholder="品牌 (如: ZARA)" required>
+                            <label class="form-label small text-muted">品牌</label>
+                            <input type="text" name="brand" class="form-control" required>
                         </div>
                         <div class="col-md-2">
-                            <input type="number" name="price" class="form-control" placeholder="價格 (NT$)" required>
+                            <label class="form-label small text-muted">價格</label>
+                            <input type="number" name="price" class="form-control" required>
                         </div>
                         <div class="col-md-2">
+                            <label class="form-label small text-muted">分類</label>
                             <select name="category" class="form-select">
                                 <option value="top">上衣</option>
                                 <option value="bottom">下身</option>
-                                <option value="dress">洋裝</option>
                                 <option value="outer">外套</option>
+                                <option value="acc">配件</option>
                             </select>
                         </div>
                         <div class="col-md-2">
+                            <label class="form-label small text-muted">圖片</label>
                             <input type="file" name="image" class="form-control" accept="image/*" required>
                         </div>
-                        <div class="col-md-8">
-                            <input type="text" name="tags" class="form-control" placeholder="風格標籤 (AI 媒合用，如: 面試, 顯瘦)">
-                        </div>
-                        <div class="col-md-2 d-flex align-items-center">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" name="is_ad" id="adSwitch">
-                                <label class="form-check-label small" for="adSwitch">標示為業配/贊助</label>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-dark w-100 rounded-pill">上架</button>
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary px-4 rounded-pill shadow-sm">確認上架</button>
                         </div>
                     </form>
                 </div>
 
                 <div class="glass-card p-0 overflow-hidden">
                     <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
+                        <thead class="bg-light">
                             <tr>
                                 <th class="ps-4">圖片</th>
                                 <th>名稱</th>
                                 <th>品牌</th>
                                 <th>價格</th>
-                                <th>標籤</th>
                                 <th>狀態</th>
                                 <th>操作</th>
                             </tr>
@@ -539,19 +484,20 @@
                                 <td class="ps-4">
                                     <img src="{{ url_for('static', filename=item.image_path) }}" class="rounded" width="50" height="50" style="object-fit: cover;">
                                 </td>
-                                <td class="fw-bold">{{ item.title }}</td>
-                                <td>{{ item.brand }}</td>
-                                <td>NT$ {{ item.price }}</td>
-                                <td><span class="badge bg-light text-dark border">{{ item.tags }}</span></td>
+                                <td class="fw-bold text-dark">{{ item.title }}</td>
+                                <td class="text-secondary">{{ item.brand }}</td>
+                                <td class="fw-bold" style="color: var(--brand-dark);">NT$ {{ item.price }}</td>
                                 <td>
                                     {% if item.is_ad %}
                                     <span class="badge bg-warning text-dark">贊助</span>
                                     {% else %}
-                                    <span class="badge bg-success">嚴選</span>
+                                    <span class="badge bg-light text-dark border">正常</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <a href="/admin/delete_item/{{ item.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('確定下架此商品？')">下架</a>
+                                    <a href="/admin/delete_item/{{ item.id }}" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="return confirm('確定下架？')">
+                                        <i class="fas fa-trash-alt"></i> 下架
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -562,54 +508,53 @@
 
             <div class="tab-pane fade" id="tab-users">
 
-                <div class="glass-card mb-4 p-0 overflow-hidden border-danger">
-                    <div class="p-3 bg-danger bg-opacity-10 border-bottom border-danger">
-                        <h6 class="fw-bold mb-0 text-danger"><i class="fas fa-exclamation-circle me-2"></i>待審核檢舉</h6>
+                <div class="glass-card mb-4 border-danger border-2" style="border-color: rgba(220, 53, 69, 0.3) !important;">
+                    <h5 class="fw-bold text-danger mb-3"><i class="fas fa-exclamation-circle me-2"></i>待審核檢舉</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead><tr><th>檢舉人</th><th>內容摘要</th><th>原因</th><th>操作</th></tr></thead>
+                            <tbody>
+                                {% for r in reports %}
+                                {% if r.status == 'pending' %}
+                                <tr>
+                                    <td>{{ r.reporter_name }}</td>
+                                    <td class="text-truncate" style="max-width: 200px;">{{ r.post_content }}</td>
+                                    <td class="text-danger fw-bold">{{ r.reason }}</td>
+                                    <td>
+                                        <a href="/api/resolve_report/{{ r.id }}" class="btn btn-sm btn-success rounded-pill">已處理</a>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% else %}
+                                <tr><td colspan="4" class="text-center text-muted">目前沒有待處理的檢舉</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    <table class="table table-hover mb-0">
-                        <thead><tr><th class="ps-4">檢舉人</th><th>被檢舉內容</th><th>原因</th><th>操作</th></tr></thead>
-                        <tbody>
-                            {% for r in reports %}
-                            {% if r.status == 'pending' %}
-                            <tr>
-                                <td class="ps-4">{{ r.reporter_name }}</td>
-                                <td class="text-truncate" style="max-width: 250px;">{{ r.post_content }}</td>
-                                <td class="text-danger fw-bold">{{ r.reason }}</td>
-                                <td>
-                                    <a href="/api/resolve_report/{{ r.id }}" class="btn btn-sm btn-success rounded-pill px-3">已處理</a>
-                                </td>
-                            </tr>
-                            {% endif %}
-                            {% else %}
-                            <tr><td colspan="4" class="text-center text-muted py-4">目前沒有待處理的檢舉</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
                 </div>
 
                 <div class="glass-card p-0 overflow-hidden">
                     <div class="p-3 bg-light border-bottom">
-                        <h6 class="fw-bold mb-0">👥 會員名單</h6>
+                        <h6 class="fw-bold mb-0 text-dark">👥 會員名單</h6>
                     </div>
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 align-middle">
                         <thead><tr><th class="ps-4">名稱</th><th>Email</th><th>身分</th><th>狀態</th><th>操作</th></tr></thead>
                         <tbody>
                             {% for u in users %}
                             <tr>
-                                <td class="ps-4 fw-bold">
+                                <td class="ps-4 fw-bold text-dark">
                                     {{ u.name }}
                                     {% if u.is_vip %}<i class="fas fa-crown text-warning ms-1"></i>{% endif %}
                                 </td>
-                                <td>{{ u.email }}</td>
+                                <td class="text-secondary">{{ u.email }}</td>
                                 <td>
-                                    {% if u.role == 'admin' %}<span class="badge bg-dark">管理員</span>
-                                    {% elif u.role == 'expert' %}<span class="badge bg-warning text-dark">專家</span>
-                                    {% elif u.role == 'official' %}<span class="badge bg-primary">官方</span>
-                                    {% else %}<span class="badge bg-secondary">會員</span>{% endif %}
+                                    {% if u.role == 'admin' %}<span class="badge bg-dark">Admin</span>
+                                    {% elif u.role == 'expert' %}<span class="badge bg-info text-dark">專家</span>
+                                    {% else %}<span class="badge bg-light text-dark border">會員</span>{% endif %}
                                 </td>
                                 <td>
-                                    {% if u.status == 'active' %}<span class="text-success"><i class="fas fa-check-circle"></i> 正常</span>
-                                    {% else %}<span class="text-danger"><i class="fas fa-ban"></i> 停權</span>{% endif %}
+                                    {% if u.status == 'active' %}<span class="text-success small">● 正常</span>
+                                    {% else %}<span class="text-danger small">● 停權</span>{% endif %}
                                 </td>
                                 <td>
                                     {% if u.role != 'admin' %}
@@ -627,100 +572,17 @@
                 </div>
             </div>
 
-        </div>
-    </div>
-</div>
+        </div> </div> </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-    // 顯示系統時間
+    // 1. 顯示系統時間
     setInterval(() => {
         document.getElementById('sysTime').innerText = new Date().toLocaleString();
     }, 1000);
 
-    // ================================
-    // 圖表初始化 (Chart.js)
-    // ================================
-
-    // 1. A/B 測試圖表
-    const ctx = document.getElementById('abChart');
-    if (ctx) {
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['方案 A (專業)', '方案 B (親切)'],
-                datasets: [{
-                    label: '商城轉化率 (%)',
-                    data: [{{ ai_stats.ab_test.A.rate }}, {{ ai_stats.ab_test.B.rate }}],
-                    backgroundColor: ['#0d6efd', '#198754'],
-                    borderRadius: 10,
-                    barThickness: 50
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } },
-                    x: { grid: { display: false } }
-                },
-                plugins: { legend: { display: false } }
-            }
-        });
-    }
-
-    // 2. 研究數據: 趨勢追蹤圖 (Trend Chart)
-    const ctxTrend = document.getElementById('trendChart');
-    if (ctxTrend) {
-        new Chart(ctxTrend, {
-            type: 'line',
-            data: {
-                labels: ['2025-10', '2025-11', '2025-12', '2026-01'],
-                datasets: [{
-                    label: 'Oversize 寬鬆風格',
-                    data: [65, 59, 80, 81],
-                    borderColor: '#D4A5A5',
-                    tension: 0.4
-                }, {
-                    label: 'Slim Fit 合身風格',
-                    data: [28, 48, 40, 19],
-                    borderColor: '#6c757d',
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { position: 'top' } }
-            }
-        });
-    }
-
-    // 3. 研究數據: 公平性雷達圖 (Fairness Radar)
-    const ctxFairness = document.getElementById('fairnessRadar');
-    if (ctxFairness) {
-        new Chart(ctxFairness, {
-            type: 'radar',
-            data: {
-                labels: ['多樣性', '滿意度', '覆蓋率', '無偏差性', '文化包容'],
-                datasets: [{
-                    label: '目前模型分數',
-                    data: [65, 80, 90, 70, 85], // 模擬數據
-                    fill: true,
-                    backgroundColor: 'rgba(212, 165, 165, 0.2)',
-                    borderColor: '#D4A5A5',
-                    pointBackgroundColor: '#D4A5A5'
-                }]
-            },
-            options: {
-                responsive: true,
-                scale: { ticks: { beginAtZero: true, max: 100 } }
-            }
-        });
-    }
-
-    // ================================
-    // 產品活水功能 (Vitality)
-    // ================================
-
+    // 2. 風格權重儲存功能
     function saveTrends() {
         let weights = {};
         document.querySelectorAll('.trend-slider').forEach(input => {
@@ -732,16 +594,6 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ weights: weights })
         }).then(r => r.json()).then(data => alert(data.msg));
-    }
-
-    function reviewProp(id, action) {
-        fetch('/api/admin/review_proposal', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: id, action: action })
-        }).then(() => {
-            document.getElementById('prop-' + id).remove();
-        });
     }
 
     function addTrendRow() {
@@ -758,10 +610,80 @@
             <input type="range" class="form-range trend-slider" min="0.5" max="2.0" step="0.1"
                    value="1.0" data-style="${name}" oninput="this.previousElementSibling.querySelector('.weight-val').innerText = this.value + 'x'">
         `;
-        // 插入到 input-group 之前
-        form.insertBefore(div, form.lastElementChild);
+        form.insertBefore(div, form.querySelector('hr'));
         document.getElementById('newTrendName').value = '';
     }
+
+    // 3. 圖表初始化
+    // 顏色優化：使用莫蘭迪色系 (Dusty Blue, Sage Green, Muted Red)
+    const brandColors = ['#7f9cc6', '#D4A5A5', '#709f7a', '#e0b06b'];
+
+    // 性別圓餅圖
+    const ctxGender = document.getElementById('genderChart');
+    if (ctxGender && {{ demographics.gender.data|tojson }}) {
+        new Chart(ctxGender, {
+            type: 'doughnut',
+            data: {
+                labels: {{ demographics.gender.labels|tojson }},
+                datasets: [{
+                    data: {{ demographics.gender.data|tojson }},
+                    backgroundColor: ['#7f9cc6', '#D4A5A5', '#95a5a6'], // 藍, 粉, 灰
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    // 年齡柱狀圖
+    const ctxAge = document.getElementById('ageChart');
+    if (ctxAge && {{ demographics.age.data|tojson }}) {
+        new Chart(ctxAge, {
+            type: 'bar',
+            data: {
+                labels: {{ demographics.age.labels|tojson }},
+                datasets: [{
+                    label: '用戶人數',
+                    data: {{ demographics.age.data|tojson }},
+                    backgroundColor: '#2c3e50', // 深藍灰
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+    // A/B 測試圖
+    const ctxAB = document.getElementById('abChart');
+    if (ctxAB) {
+        new Chart(ctxAB, {
+            type: 'bar',
+            data: {
+                labels: ['Model A (專業)', 'Model B (親切)'],
+                datasets: [{
+                    label: '購買轉化率 (%)',
+                    data: [{{ ai_stats.ab_test.A.rate }}, {{ ai_stats.ab_test.B.rate }}],
+                    backgroundColor: ['#7f9cc6', '#709f7a'], // 霧霾藍 vs 鼠尾草綠
+                    barThickness: 50,
+                    borderRadius: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
 </script>
+
 </body>
 </html>

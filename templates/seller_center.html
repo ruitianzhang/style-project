@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    :root {
+        --morandi-pink: #D4A5A5;
+        --morandi-bg: #FDFBFA;
+        --glass-bg: rgba(255, 255, 255, 0.75);
+    }
+
+    body { background-color: var(--morandi-bg); }
+
+    /* 1. 頂部來回切換導航 (與主頁風格對接) */
+    .nav-capsule {
+        background: white;
+        border-radius: 50px;
+        padding: 5px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        display: inline-flex;
+        border: 1px solid rgba(212, 165, 165, 0.1);
+    }
+    .nav-capsule .nav-link {
+        border-radius: 50px;
+        padding: 8px 25px;
+        color: #888;
+        font-weight: 500;
+        transition: 0.3s;
+        border: none;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .nav-capsule .nav-link.active {
+        background-color: var(--morandi-pink);
+        color: white !important;
+    }
+
+    /* 2. 數據卡片優化 (漸層微光) */
+    .stat-card-glass {
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 25px;
+        transition: 0.3s;
+    }
+    .stat-card-glass:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(212, 165, 165, 0.1);
+    }
+    .icon-box {
+        width: 55px; height: 55px;
+        border-radius: 18px;
+        display: flex; align-items: center; justify-content: center;
+    }
+
+    /* 3. 商品清單卡片 */
+    .table-container {
+        background: white;
+        border-radius: 30px;
+        border: 1px solid rgba(0,0,0,0.02);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.02);
+    }
+    .product-thumb {
+        width: 60px; height: 60px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 2px solid #fff;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    /* 4. 上架區域與按鈕 */
+    .btn-pink {
+        background: linear-gradient(135deg, var(--morandi-pink), #C58E8E);
+        color: white !important; border-radius: 50px; border: none;
+        padding: 10px 25px; font-weight: bold; transition: 0.3s;
+    }
+    .btn-pink:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(212, 165, 165, 0.3); }
+
+    .upload-box {
+        background: #F9F7F6;
+        border: 2px dashed #E5DED9;
+        border-radius: 20px;
+        transition: 0.3s;
+        cursor: pointer;
+    }
+    .upload-box:hover { border-color: var(--morandi-pink); background: #FFF9F9; }
+
+    .form-control-morandi {
+        border-radius: 12px;
+        background: #F9F7F6;
+        border: 1px solid transparent;
+        padding: 10px 15px;
+    }
+    .form-control-morandi:focus {
+        background: white;
+        border-color: var(--morandi-pink);
+        box-shadow: 0 0 0 3px rgba(212, 165, 165, 0.1);
+    }
+
+    .text-pink { color: var(--morandi-pink) !important; }
+</style>
+
+<div class="container py-5">
+
+    <div class="text-center mb-5 fade-in">
+        <div class="nav-capsule shadow-sm">
+            <a href="{{ url_for('user_public_profile', user_id=session.get('user_id')) }}" class="nav-link">
+                <i class="fas fa-store"></i> 我的店鋪
+            </a>
+            <a href="#" class="nav-link active">
+                <i class="fas fa-tasks"></i> 賣場管理中心
+            </a>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-end mb-4 px-2 fade-in">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">賣場數據概覽</h3>
+            <p class="text-muted small mb-0">掌握即時銷售動態與庫存價值</p>
+        </div>
+        <button class="btn btn-pink" data-bs-toggle="modal" data-bs-target="#addProductModal">
+            <i class="fas fa-plus-circle me-2"></i>上架新單品
+        </button>
+    </div>
+
+    <div class="row g-4 mb-5 fade-in">
+        <div class="col-md-4">
+            <div class="stat-card-glass p-4">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-white shadow-sm text-pink me-3">
+                        <i class="fas fa-box fa-lg"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block mb-1">上架中商品</small>
+                        <h3 class="fw-bold mb-0">{{ stats.total_items }} <span class="fs-6 fw-normal">件</span></h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card-glass p-4">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-white shadow-sm text-success me-3">
+                        <i class="fas fa-hand-holding-usd fa-lg"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block mb-1">預估庫存價值</small>
+                        <h3 class="fw-bold mb-0"><small class="fs-6">NT$</small> {{ "{:,}".format(stats.inventory_value) }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card-glass p-4">
+                <div class="d-flex align-items-center">
+                    <div class="icon-box bg-white shadow-sm text-warning me-3">
+                        <i class="fas fa-shopping-bag fa-lg"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block mb-1">累計售出訂單</small>
+                        <h3 class="fw-bold mb-0">{{ stats.sold_count }} <span class="fs-6 fw-normal">筆</span></h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center mb-3 px-2">
+        <h5 class="fw-bold mb-0">商品清單</h5>
+        <span class="ms-2 badge rounded-pill bg-white text-muted border px-3 fw-normal">{{ items|length }} 項目</span>
+    </div>
+
+    <div class="table-container fade-in overflow-hidden">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead style="background: #FBF9F8;">
+                    <tr>
+                        <th class="ps-4 py-3 text-muted small fw-bold">商品預覽</th>
+                        <th class="py-3 text-muted small fw-bold">商品名稱 / ID</th>
+                        <th class="py-3 text-muted small fw-bold">價格</th>
+                        <th class="py-3 text-muted small fw-bold">分類</th>
+                        <th class="py-3 text-muted small fw-bold">狀態</th>
+                        <th class="text-end pe-4 py-3 text-muted small fw-bold">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr style="transition: 0.3s;">
+                        <td class="ps-4">
+                            <img src="{{ item.image_path }}" class="product-thumb">
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ item.title }}</div>
+                            <small class="text-muted opacity-50">UID: {{ item.id }}</small>
+                        </td>
+                        <td>
+                            <span class="fw-bold text-pink">NT$ {{ "{:,}".format(item.price) }}</span>
+                        </td>
+                        <td>
+                            <span class="badge rounded-pill bg-light text-muted fw-normal border px-3">{{ item.category }}</span>
+                        </td>
+                        <td>
+                            {% if item.status == 'sold' %}
+                                <span class="badge rounded-pill bg-secondary bg-opacity-10 text-secondary px-3">已售出</span>
+                            {% else %}
+                                <span class="badge rounded-pill bg-success bg-opacity-10 text-success px-3 border border-success border-opacity-10">
+                                    <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> 上架中
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-light rounded-circle text-muted me-1" style="width: 35px; height: 35px;"><i class="fas fa-pen"></i></button>
+                            <button class="btn btn-sm btn-light rounded-circle text-danger" style="width: 35px; height: 35px;" onclick="deleteProduct({{ item.id }})"><i class="fas fa-trash-alt"></i></button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if not items %}
+        <div class="text-center py-5">
+            <img src="https://cdn-icons-png.flaticon.com/512/4076/4076432.png" width="100" class="opacity-25 mb-3">
+            <p class="text-muted small">賣場目前空空的，快去上架精選商品吧！</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="addProductModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 30px;">
+            <div class="modal-header border-0 p-4 pb-0">
+                <h5 class="modal-title fw-bold text-pink"><i class="fas fa-magic me-2"></i>上架新單品</h5>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('seller_add_product') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-5">
+                            <div class="upload-box h-100 d-flex flex-column align-items-center justify-content-center p-4 text-center position-relative overflow-hidden"
+                                 onclick="document.getElementById('productImg').click()">
+                                <div id="uploadPlaceholder">
+                                    <i class="fas fa-cloud-upload-alt fa-3x text-pink opacity-25 mb-3"></i>
+                                    <p class="text-muted small fw-bold mb-0">點擊上傳商品美照</p>
+                                    <small class="text-muted extra-small">建議比例 1:1</small>
+                                </div>
+                                <img id="imgPreview" class="position-absolute w-100 h-100 object-fit-cover d-none" style="top:0; left:0;">
+                                <input type="file" name="image" id="productImg" class="d-none" accept="image/*" onchange="previewImage(this)" required>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted">商品名稱</label>
+                                <input type="text" name="title" class="form-control form-control-morandi" placeholder="輸入迷人的標題..." required>
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted">定價 (NT$)</label>
+                                    <input type="number" name="price" class="form-control form-control-morandi" placeholder="0" required>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted">分類</label>
+                                    <select name="category" class="form-select form-control-morandi">
+                                        <option value="top">上身 (Top)</option>
+                                        <option value="bottom">下身 (Bottom)</option>
+                                        <option value="outer">外套 (Outer)</option>
+                                        <option value="acc">配件 (Acc)</option>
+                                        <option value="shoes">鞋靴 (Shoes)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted">材質類型</label>
+                                    <select name="material" class="form-select form-control-morandi">
+                                        <option value="棉">棉質</option>
+                                        <option value="牛仔">丹寧/牛仔</option>
+                                        <option value="聚酯纖維">聚酯纖維</option>
+                                        <option value="針織">針織</option>
+                                        <option value="皮革">皮革</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small fw-bold text-muted">風格調性</label>
+                                    <select name="quadrant" class="form-select form-control-morandi">
+                                        <option value="Q5">🍃 自然休閒</option>
+                                        <option value="Q1">🌸 甜美鄰家</option>
+                                        <option value="Q2">⚡ 前衛個性</option>
+                                        <option value="Q3">💎 優雅職場</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label small fw-bold text-muted">商品描述</label>
+                                <textarea name="description" class="form-control form-control-morandi" rows="3" placeholder="描述版型、適合場合..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-pink px-5">確認上架</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewImage(input) {
+    if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('imgPreview');
+            const placeholder = document.getElementById('uploadPlaceholder');
+            preview.src = e.target.result;
+            preview.classList.remove('d-none');
+            placeholder.classList.add('d-none');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function deleteProduct(itemId) {
+    if(!confirm('確定要下架此單品嗎？')) return;
+    fetch('/api/seller/delete_product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: itemId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'success') { location.reload(); }
+        else { alert('下架失敗：' + data.msg); }
+    });
+}
+</script>
+{% endblock %}

@@ -1,56 +1,217 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row align-items-center min-vh-75 py-5">
-    <div class="col-lg-6 text-start">
-        <span class="badge bg-danger mb-3 rounded-pill px-3 py-2">NEW 功能上線</span>
-        <h1 class="display-3 fw-bold mb-4" style="line-height: 1.2;">
-            AI 智慧風格顧問<br>
-            <span style="color: #D4A5A5;">穿出你的自信美</span>
-        </h1>
-        <p class="lead text-muted mb-5">
-            不再盲目跟風。我們結合頂尖的 <strong>Mediapipe 臉部偵測</strong> 與 <strong>身型比例分析</strong>。<br>
-            只需 3 秒，為您量身打造專屬的髮型、妝容與穿搭建議。
-        </p>
-        <div class="d-flex gap-3">
-            <a href="{{ url_for('analysis_page') }}" class="btn btn-style btn-lg rounded-pill px-5 py-3">立即免費體驗</a>
-            <a href="#features" class="btn btn-outline-secondary btn-lg rounded-pill px-4 py-3">了解更多</a>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" class="img-fluid rounded-5 shadow-lg" alt="Fashion AI" style="transform: rotate(2deg);">
-    </div>
-</div>
+<style>
+    /* 這裡定義首頁專屬的配色，不會影響全域 style.css */
+    :root {
+        --morandi-pink: #D4A5A5;
+        --morandi-gold: #C5A065;
+        --morandi-green: #8DA399;
+        --morandi-purple: #9B8EA9;
+        --glass-bg: rgba(255, 255, 255, 0.75);
+        --glass-border: rgba(255, 255, 255, 0.8);
+    }
 
-<hr class="my-5" style="opacity: 0.1;">
+    /* 1. 背景流動光暈 */
+    .ambient-light {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.4;
+        z-index: 0;
+        animation: floatLight 10s infinite ease-in-out;
+    }
 
-<div id="features" class="py-5">
-    <div class="text-center mb-5">
-        <h2 class="fw-bold">三大核心技術</h2>
-        <p class="text-muted">解決您的網購決策焦慮</p>
+    /* 2. 玻璃卡片 */
+    .glass-panel {
+        background: var(--glass-bg);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+        position: relative;
+        z-index: 2;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .glass-panel:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(212, 165, 165, 0.15);
+    }
+
+    /* 3. 搜尋框特效 */
+    .search-container {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255, 255, 255, 1);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        transition: all 0.3s;
+    }
+    .search-container:focus-within {
+        transform: scale(1.02);
+        box-shadow: 0 15px 40px rgba(212, 165, 165, 0.2);
+        border-color: var(--morandi-pink);
+    }
+
+    /* 動畫 Keyframes */
+    @keyframes floatLight {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(30px, -30px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fade-in-up { animation: fadeInUp 1s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+    /* 文字排版 */
+    .letter-spacing-1 { letter-spacing: 1px; }
+    .text-gold { color: var(--morandi-gold); }
+    .btn-tag {
+        background: #fff; border: 1px solid #eee; color: #666;
+        transition: 0.2s;
+    }
+    .btn-tag:hover {
+        background: var(--morandi-pink); color: #fff; border-color: var(--morandi-pink);
+    }
+</style>
+
+<section class="position-relative overflow-hidden d-flex flex-column justify-content-center align-items-center" style="min-height: 100vh;">
+
+    <div class="position-absolute top-0 start-0 w-100 h-100 overflow-hidden" style="z-index: -1;">
+        <div class="ambient-light" style="top: -10%; left: -10%; width: 600px; height: 600px; background: var(--morandi-pink);"></div>
+        <div class="ambient-light" style="top: 30%; right: -10%; width: 500px; height: 500px; background: var(--morandi-gold); animation-delay: -2s;"></div>
+        <div class="ambient-light" style="bottom: -10%; left: 20%; width: 400px; height: 400px; background: var(--morandi-green); animation-delay: -4s;"></div>
     </div>
-    <div class="row g-4">
-        <div class="col-md-4">
-            <div class="glass-card text-center h-100 border-0">
-                <i class="fas fa-id-card-alt fa-3x mb-3" style="color: #D4A5A5;"></i>
-                <h4>精準臉型分析</h4>
-                <p class="text-muted mt-3">透過 AI 掃描五官特徵，判斷您是圓臉、方臉還是鵝蛋臉，推薦最修飾的髮型。</p>
+
+    <div class="container position-relative z-index-10 text-center fade-in-up">
+
+        <div class="mb-5">
+            <span class="badge bg-white text-secondary border px-3 py-2 rounded-pill shadow-sm mb-3 fw-normal letter-spacing-1">
+                ✨ AI Powered Personal Stylist
+            </span>
+            <h1 class="display-3 fw-bold mb-3 text-dark" style="font-family: 'Helvetica Neue', sans-serif;">
+                遇見<span style="color: var(--morandi-pink);">更懂你的</span><br>
+                專屬風格美學
+            </h1>
+            <p class="lead text-muted mx-auto" style="max-width: 600px; font-weight: 300; font-size: 1.1rem;">
+                不再盲目跟風。透過 AI 精密診斷臉型與身形，<br>從全球圖庫中，為您篩選出最適合的命定單品。
+            </p>
+        </div>
+
+        <div class="search-container rounded-pill p-1 mx-auto mb-4" style="max-width: 580px;">
+            <div class="input-group">
+                <span class="input-group-text bg-transparent border-0 ps-4">
+                    <i class="fas fa-search text-muted opacity-50"></i>
+                </span>
+                <input type="text" id="indexSearchInput"
+                       class="form-control border-0 bg-transparent py-3 text-dark"
+                       placeholder="試試搜尋：約會戰袍、顯瘦寬褲、韓系..."
+                       style="box-shadow: none; font-size: 1.05rem;">
+                <button class="btn btn-dark rounded-pill px-5 fw-bold m-1 shadow-sm"
+                        onclick="goToSearch()" style="background-color: #4A4A4A; border: none;">
+                    搜 尋
+                </button>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="glass-card text-center h-100 border-0">
-                <i class="fas fa-ruler-combined fa-3x mb-3" style="color: #D4A5A5;"></i>
-                <h4>身型比例診斷</h4>
-                <p class="text-muted mt-3">輸入肩、胸、腰、臀數據，科學化判定梨形或蘋果形身材，揚長避短。</p>
-            </div>
+
+        <div class="d-flex justify-content-center gap-2 mb-5 flex-wrap">
+            <small class="text-muted align-self-center me-2">熱門趨勢：</small>
+            <button onclick="goToSearch('老錢風')" class="btn btn-sm btn-tag rounded-pill px-3">#老錢風</button>
+            <button onclick="goToSearch('美拉德')" class="btn btn-sm btn-tag rounded-pill px-3">#美拉德</button>
+            <button onclick="goToSearch('顯瘦')" class="btn btn-sm btn-tag rounded-pill px-3">#顯瘦神褲</button>
+            <button onclick="goToSearch('婚禮')" class="btn btn-sm btn-tag rounded-pill px-3">#婚禮穿搭</button>
         </div>
-        <div class="col-md-4">
-            <div class="glass-card text-center h-100 border-0">
-                <i class="fas fa-tshirt fa-3x mb-3" style="color: #D4A5A5;"></i>
-                <h4>情境式推薦</h4>
-                <p class="text-muted mt-3">無論是通勤、約會還是派對，根據場合提供最得體的整體造型建議。</p>
+
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{{ url_for('analysis_page') }}" class="btn btn-lg rounded-pill px-5 py-3 shadow text-white fw-bold"
+               style="background: linear-gradient(135deg, #D4A5A5, #C58E8E); border: none; transition: transform 0.2s;">
+                <i class="fas fa-camera me-2"></i> AI 風格診斷
+            </a>
+            <a href="{{ url_for('try_on_page') }}" class="btn btn-lg btn-light rounded-pill px-5 py-3 shadow-sm border fw-bold text-muted"
+               style="transition: transform 0.2s;">
+                <i class="fas fa-tshirt me-2"></i> 虛擬試衣間
+            </a>
+        </div>
+
+    </div>
+</section>
+
+<section class="py-5 position-relative">
+    <div class="container py-4">
+        <div class="row g-4">
+
+            <div class="col-md-4">
+                <div class="glass-panel h-100 p-5 rounded-5 text-center overflow-hidden">
+                    <div class="position-absolute top-0 start-50 translate-middle rounded-circle"
+                         style="width: 150px; height: 150px; background: var(--morandi-pink); filter: blur(60px); opacity: 0.2;"></div>
+
+                    <div class="position-relative z-2">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-sm mb-4"
+                             style="width: 70px; height: 70px; color: var(--morandi-pink);">
+                            <i class="fas fa-id-card-alt fa-2x"></i>
+                        </div>
+                        <h4 class="fw-bold mb-3 text-dark">科學化身形診斷</h4>
+                        <p class="text-muted small lh-lg">
+                            上傳一張照片，AI 立即分析您的三庭五眼與骨架比例，生成專屬的詳細報告書。
+                        </p>
+                    </div>
+                </div>
             </div>
+
+            <div class="col-md-4">
+                <div class="glass-panel h-100 p-5 rounded-5 text-center overflow-hidden">
+                    <div class="position-absolute top-0 start-50 translate-middle rounded-circle"
+                         style="width: 150px; height: 150px; background: var(--morandi-green); filter: blur(60px); opacity: 0.2;"></div>
+
+                    <div class="position-relative z-2">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-sm mb-4"
+                             style="width: 70px; height: 70px; color: var(--morandi-green);">
+                            <i class="fas fa-magic fa-2x"></i>
+                        </div>
+                        <h4 class="fw-bold mb-3 text-dark">AI 虛擬試衣間</h4>
+                        <p class="text-muted small lh-lg">
+                            想試試不同風格？輸入指令或上傳衣服圖片，AI 為您的數位分身即時換裝。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass-panel h-100 p-5 rounded-5 text-center overflow-hidden">
+                    <div class="position-absolute top-0 start-50 translate-middle rounded-circle"
+                         style="width: 150px; height: 150px; background: var(--morandi-purple); filter: blur(60px); opacity: 0.2;"></div>
+
+                    <div class="position-relative z-2">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-sm mb-4"
+                             style="width: 70px; height: 70px; color: var(--morandi-purple);">
+                            <i class="fas fa-users fa-2x"></i>
+                        </div>
+                        <h4 class="fw-bold mb-3 text-dark">風格投票社群</h4>
+                        <p class="text-muted small lh-lg">
+                            猶豫不決？發佈您的穿搭，讓社群與 AI 顧問為您投票，找出最佳選擇。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
-</div>
+</section>
+
+<script>
+    function goToSearch(keyword) {
+        if (!keyword) {
+            keyword = document.getElementById('indexSearchInput').value.trim();
+        }
+        if(keyword) {
+            localStorage.setItem('autoSearchKey', keyword);
+        }
+        window.location.href = "{{ url_for('search_page') }}";
+    }
+
+    document.getElementById('indexSearchInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') goToSearch();
+    });
+</script>
 {% endblock %}

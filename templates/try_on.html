@@ -1,54 +1,741 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="container">
-    <h2 class="text-center fw-bold mb-4" style="color: #D4A5A5;">👗 AI 虛擬克隆試穿</h2>
-    
-    <div class="row">
-        <div class="col-md-5">
-            <div class="glass-card text-center">
-                <h5>1. 您的 AI 模型</h5>
-                <img src="{{ url_for('static', filename=session.get('current_image_path', 'uploads/default.jpg')) }}" class="img-fluid rounded shadow mb-3" style="max-height: 400px;">
-                <p class="text-muted small">系統將使用這張照片進行合成</p>
+<div class="container-fluid py-4" style="background-color: #FDFBFA; min-height: 90vh;">
+    <div class="row g-3 px-3">
+
+        <div class="col-lg-3 bg-white border shadow-sm p-4 d-flex flex-column" style="height: 85vh; border-radius: 25px;">
+            <div class="mb-4 text-center">
+                <h4 class="fw-bold mb-1" style="color: #D4A5A5; letter-spacing: 1px;">
+                    <i class="fas fa-sliders-h me-2"></i>體態實驗室
+                </h4>
+                <p class="text-muted small">客製化您的數位分身</p>
+            </div>
+
+            <div class="bg-light p-1 rounded-pill d-flex justify-content-between mb-4 border" style="background: #F9F7F6 !important;">
+                <button class="btn btn-sm rounded-pill w-50 fw-bold transition-btn active-gender" id="btn-female" onclick="switchGender('female')">
+                    <i class="fas fa-female me-1"></i> Female
+                </button>
+                <button class="btn btn-sm rounded-pill w-50 fw-bold transition-btn text-muted" id="btn-male" onclick="switchGender('male')">
+                    <i class="fas fa-male me-1"></i> Male
+                </button>
+            </div>
+
+            <div class="d-flex gap-2 mb-4">
+                <button class="btn btn-dark w-100 rounded-pill py-2 fw-bold shadow-sm" onclick="syncBodyFromScan()">
+                    </i>數據同步
+                </button>
+                <button class="btn btn-light border w-100 rounded-pill py-2 fw-bold shadow-sm" onclick="setupSliders()">
+                    <i class="fas fa-undo-alt me-2"></i>重置
+                </button>
+            </div>
+
+            <div class="control-group overflow-auto flex-grow-1 pe-2 custom-scrollbar">
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">肩膀寬度 (Shoulders)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Shoulders" onchange="syncInput('Shoulders', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Shoulders" oninput="syncInput('Shoulders', this.value)">
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">胸圍 (Chest)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Chest" onchange="syncInput('Chest', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Chest" oninput="syncInput('Chest', this.value)">
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">腰圍 (Waist)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Waist" onchange="syncInput('Waist', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Waist" oninput="syncInput('Waist', this.value)">
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">臀圍 (Hips)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Hips" onchange="syncInput('Hips', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Hips" oninput="syncInput('Hips', this.value)">
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">大腿圍 (Thighs)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Thighs" onchange="syncInput('Thighs', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Thighs" oninput="syncInput('Thighs', this.value)">
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">小腿圍 (Calves)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Calves" onchange="syncInput('Calves', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Calves" oninput="syncInput('Calves', this.value)">
+                </div>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-dark mb-0">腳掌尺碼 (Shoes)</label>
+                        <div class="input-group input-group-sm" style="width: 85px;">
+                            <input type="number" class="form-control text-center px-1 fw-bold text-pink" id="num_Shoes" onchange="syncInput('Shoes', this.value)">
+                            <span class="input-group-text px-1 text-muted bg-light">cm</span>
+                        </div>
+                    </div>
+                    <input type="range" class="form-range custom-range" id="slider_Shoes" oninput="syncInput('Shoes', this.value)">
+                </div>
+
+            </div>
+
+            <div class="mt-3 pt-3 border-top">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="skeletonMode" onchange="toggleSkeleton()">
+                    <label class="form-check-label small text-muted" for="skeletonMode">顯示骨架結構 (Debug)</label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="wireframeMode" onchange="toggleWireframe()">
+                    <label class="form-check-label small text-muted" for="wireframeMode">工程網格模式 (Wireframe)</label>
+                </div>
             </div>
         </div>
 
-        <div class="col-md-2 d-flex flex-column justify-content-center align-items-center">
-            <i class="fas fa-plus fa-2x text-muted mb-2"></i>
+        <div class="col-lg-6 position-relative p-0 overflow-hidden" style="height: 85vh; border-radius: 25px; background: #FDFBFA; border: 1px solid #eee;">
+            <div id="simsCanvas" class="w-100 h-100 outline-none" style="cursor: grab;"></div>
+
+            <div id="loadingOverlay" class="position-absolute top-0 start-0 w-100 h-100 bg-white d-flex flex-column justify-content-center align-items-center" style="z-index: 20;">
+                <div class="spinner-border text-pink mb-3" role="status"></div>
+                <h5 class="fw-bold text-muted">正在載入 3D 資源...</h5>
+                <div id="loadingStatus" class="small text-muted mt-2">初始化中...</div>
+                <div id="errorLog" class="text-danger small mt-3 px-4 text-center" style="max-width: 80%;"></div>
+            </div>
+
+            <div class="position-absolute start-50 translate-middle-x w-100 text-center px-3" style="z-index: 15; bottom: 30px;">
+                <div class="d-flex justify-content-center gap-3">
+                    <button class="btn btn-dark rounded-pill px-5 fw-bold shadow-lg py-2" onclick="generateRealPhoto()">
+                        <i class="fas fa-camera me-2"></i>生成擬真定裝照
+                    </button>
+                    <button class="btn btn-white border rounded-circle shadow-sm" style="width: 48px; height: 48px;" onclick="resetCamera()" title="重置視角">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div class="col-md-5">
-            <div class="glass-card text-center">
-                <h5>2. 上傳想試穿的單品</h5>
-                <div class="upload-area border-dashed p-4 mb-3" onclick="document.getElementById('clothInput').click()" style="cursor: pointer; border: 2px dashed #ccc;">
-                    <i class="fas fa-tshirt fa-3x text-muted"></i>
-                    <p class="mb-0 mt-2">點擊上傳衣服照片</p>
+        <div class="col-lg-3 bg-white border shadow-sm d-flex flex-column" style="height: 85vh; border-radius: 25px;">
+            <div class="p-4 border-bottom" style="background: #FDFBFA; border-radius: 25px 25px 0 0;">
+                <h5 class="fw-bold mb-1" style="color: #333;"><i class="fas fa-robot me-2 text-pink"></i>AI 造型助理</h5>
+                <small class="text-muted">告訴我您想穿什麼，我幫您設計。</small>
+            </div>
+
+            <div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" id="chatArea" style="background-color: #F9F7F6;">
+                <div class="d-flex flex-column align-items-start mb-3">
+                    <div class="bg-white border p-3 rounded-4 shadow-sm text-secondary small" style="max-width: 95%;">
+                        👋 嗨！我是您的 AI 造型師。<br>
+                        您可以試著對我說：
+                        <hr class="my-2 opacity-10">
+                        👉 "給我一件復古的丹寧外套"<br>
+                        👉 "換成紅色的絲綢長裙"
+                    </div>
                 </div>
-                <input type="file" id="clothInput" class="d-none" accept="image/*" onchange="tryOn(this)">
-                <div id="tryOnResult" class="d-none">
-                    <h5 class="text-success mt-3">✨ 試穿完成！</h5>
-                    <img id="resultImg" src="" class="img-fluid rounded shadow">
-                    <button class="btn btn-style mt-3 rounded-pill w-100">儲存穿搭</button>
+            </div>
+
+            <div class="p-4 bg-white border-top" style="border-radius: 0 0 25px 25px;">
+                <div class="input-group">
+                    <input type="text" id="aiPrompt" class="form-control rounded-pill bg-light border-0 px-3" placeholder="輸入指令..." onkeypress="handleEnter(event)">
+                    <button class="btn btn-morandi-circle ms-2" onclick="sendAiCommand()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<div class="modal fade" id="resultModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-5 shadow-lg overflow-hidden">
+            <div class="modal-body p-0 text-center bg-dark">
+                <img id="resultImage" src="" class="img-fluid">
+            </div>
+            <div class="modal-footer justify-content-between bg-white border-0 p-4">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">返回修改</button>
+                <a id="downloadLink" href="#" download="ai_tryon.jpg" class="btn btn-morandi rounded-pill px-4 fw-bold">
+                    <i class="fas fa-download me-2"></i>儲存定裝照
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+:root { --morandi-pink: #D4A5A5; }
+.text-pink { color: var(--morandi-pink) !important; }
+.active-gender { background-color: var(--morandi-pink) !important; color: white !important; box-shadow: 0 4px 10px rgba(212, 165, 165, 0.3); }
+.active-nav { background-color: var(--morandi-pink) !important; color: white !important; }
+.custom-range { -webkit-appearance: none; width: 100%; height: 4px; background: #eee; border-radius: 5px; outline: none; }
+.custom-range::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--morandi-pink); cursor: pointer; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.btn-morandi-circle { width: 45px; height: 45px; border-radius: 50%; background: var(--morandi-pink); color: white; border: none; display: flex; align-items: center; justify-content: center; }
+.backdrop-blur { backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.transition-btn { transition: all 0.3s ease; }
+.user-bubble { background-color: var(--morandi-pink); color: white; border-radius: 18px 18px 2px 18px; box-shadow: 0 4px 12px rgba(212, 165, 165, 0.2); margin-bottom: 10px;}
+.ai-bubble { background-color: white; color: #555; border: 1px solid #f0f0f0; border-radius: 18px 18px 18px 2px; margin-bottom: 10px;}
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #eee; border-radius: 10px; }
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
 <script>
-function tryOn(input) {
-    if(input.files && input.files[0]) {
-        let formData = new FormData();
-        formData.append('cloth_image', input.files[0]);
-        
-        // 顯示 Loading (省略實作細節，建議加個 Spinner)
-        
-        fetch('/api/try_on', { method: 'POST', body: formData })
-        .then(r => r.json())
-        .then(data => {
-            document.getElementById('resultImg').src = data.result_url;
-            document.getElementById('tryOnResult').classList.remove('d-none');
-        });
+let scene, camera, renderer, controls, currentModel = null, skeletonHelper = null;
+let mixer, clock = new THREE.Clock();
+let currentGender = 'female';
+
+let bones = {
+    Hips: null, Spine: null, Spine1: null, Spine2: null,
+    Neck: null, ShoulderL: null, ShoulderR: null,
+    ArmL: null, ArmR: null, LegL: null, LegR: null,
+    CalfL: null, CalfR: null, FootL: null, FootR: null
+};
+let initScales = {};
+let initWorldScales = {};
+let currentSliders = { Hips: 1.0, Waist: 1.0, Chest: 1.0, Shoulders: 1.0, Thighs: 1.0, Calves: 1.0, Shoes: 1.0 };
+
+const bodyConfig = {
+    female: {
+        Shoulders: { default: 38, min: 30, max: 55 },
+        Chest:     { default: 85, min: 70, max: 130 },
+        Waist:     { default: 65, min: 50, max: 100 },
+        Hips:      { default: 90, min: 75, max: 130 },
+        Thighs:    { default: 50, min: 40, max: 80 },
+        Calves:    { default: 32, min: 25, max: 55 },
+        Shoes:     { default: 24, min: 20, max: 28 }
+    },
+    male: {
+        Shoulders: { default: 46, min: 35, max: 70 },
+        Chest:     { default: 100, min: 80, max: 160 },
+        Waist:     { default: 82, min: 60, max: 150 },
+        Hips:      { default: 96, min: 80, max: 140 },
+        Thighs:    { default: 55, min: 40, max: 95 },
+        Calves:    { default: 36, min: 30, max: 65 },
+        Shoes:     { default: 27, min: 24, max: 32 }
     }
+};
+
+const MODEL_BASE_PATH = "{{ url_for('static', filename='models/') }}";
+const CACHE_BUSTER = "?v=" + new Date().getTime();
+
+const dracoLoader = new THREE.DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
+dracoLoader.setDecoderConfig({ type: 'js' });
+
+window.onerror = function(msg, url, line) { console.error(msg); };
+
+document.addEventListener('DOMContentLoaded', init3D);
+
+function updateStatus(msg) {
+    const el = document.getElementById('loadingStatus');
+    if(el) el.innerText = msg;
+}
+
+function hideOverlay() {
+    const overlay = document.getElementById('loadingOverlay');
+    if(overlay) {
+        overlay.classList.remove('d-flex');
+        overlay.style.setProperty('display', 'none', 'important');
+    }
+}
+
+function init3D() {
+    updateStatus("初始化場景...");
+    const container = document.getElementById('simsCanvas');
+    if(!container) return;
+
+    scene = new THREE.Scene();
+    scene.autoUpdate = false;
+    scene.background = new THREE.Color(0xFDFBFA);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 7);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.01, 1000);
+    camera.position.set(0, 0.9, 0.8);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0.9, 0);
+
+    loadModel(`avatar_${currentGender}.glb`);
+    animate();
+}
+
+function loadModel(filename) {
+    const loader = new THREE.GLTFLoader();
+    loader.setDRACOLoader(dracoLoader);
+
+    const overlay = document.getElementById('loadingOverlay');
+    if(overlay) {
+        overlay.style.removeProperty('display');
+        overlay.classList.add('d-flex');
+    }
+    updateStatus(`正在下載 ${filename}...`);
+
+    loader.load(
+        MODEL_BASE_PATH + filename + CACHE_BUSTER,
+        (gltf) => {
+            updateStatus("解析模型結構...");
+            if(currentModel) scene.remove(currentModel);
+            if(skeletonHelper) scene.remove(skeletonHelper);
+
+            currentModel = gltf.scene;
+            currentModel.traverse((o) => { if (o.isMesh || o.isSkinnedMesh) o.frustumCulled = false; });
+
+            try {
+                currentModel.traverse((o) => { if (o.isMesh) { const m = o.material; } });
+            } catch (e) {
+                const whiteMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, skinning: true });
+                currentModel.traverse((o) => { if (o.isMesh) o.material = whiteMat; });
+            }
+
+            processModelGeometry(currentModel);
+            findBones(currentModel);
+
+            scene.add(currentModel);
+            currentModel.updateMatrixWorld(true);
+            saveInitWorldScales(currentModel);
+            resetCamera();
+
+            skeletonHelper = new THREE.SkeletonHelper(currentModel);
+            skeletonHelper.visible = false;
+            scene.add(skeletonHelper);
+
+            if (gltf.animations && gltf.animations.length > 0) {
+                mixer = new THREE.AnimationMixer(currentModel);
+                mixer.clipAction(gltf.animations[0]).play();
+            }
+
+            setupSliders();
+            hideOverlay();
+        }
+    );
+}
+
+function findBones(model) {
+    bones = {
+        Hips: null, Spine: null, Spine1: null, Spine2: null,
+        Neck: null, ShoulderL: null, ShoulderR: null,
+        ArmL: null, ArmR: null, LegL: null, LegR: null,
+        CalfL: null, CalfR: null, FootL: null, FootR: null
+    };
+    initScales = {};
+
+    model.traverse((o) => {
+        if (o.isBone) {
+            const rawName = o.name.toLowerCase();
+            // 剝除 mixamo 等前綴，保留最純淨的部位名稱
+            const cleanName = rawName.replace(/mixamorig[0-9]*:/g, '');
+
+            // 嚴格判定左右 (只抓獨立單字或邊界)
+            const isLeft = cleanName.includes('left') || cleanName.includes('_l') || cleanName.startsWith('l_') || cleanName.endsWith('.l');
+            const isRight = cleanName.includes('right') || cleanName.includes('_r') || cleanName.startsWith('r_') || cleanName.endsWith('.r');
+
+            if (cleanName.includes('hips') || cleanName.includes('pelvis')) bones.Hips = o;
+            else if ((cleanName.includes('spine') || cleanName.includes('waist')) && !cleanName.includes('1') && !cleanName.includes('2')) bones.Spine = o;
+            else if (cleanName.includes('spine1')) bones.Spine1 = o;
+            else if (cleanName.includes('spine2') || cleanName.includes('chest')) bones.Spine2 = o;
+            else if (cleanName.includes('neck')) bones.Neck = o;
+            else if (cleanName.includes('shoulder') || cleanName.includes('clavicle')) {
+                if (isLeft) bones.ShoulderL = o; else if (isRight) bones.ShoulderR = o;
+            }
+            else if ((cleanName.includes('arm') || cleanName.includes('bicep')) && !cleanName.includes('fore') && !cleanName.includes('hand')) {
+                if (isLeft) bones.ArmL = o; else if (isRight) bones.ArmR = o;
+            }
+            else if (cleanName.includes('upleg') || cleanName.includes('thigh')) { // 大腿
+                if (isLeft) bones.LegL = o; else if (isRight) bones.LegR = o;
+            }
+            else if ((cleanName.includes('leg') || cleanName.includes('calf') || cleanName.includes('lower')) && !cleanName.includes('up') && !cleanName.includes('thigh')) { // 小腿
+                if (isLeft) bones.CalfL = o; else if (isRight) bones.CalfR = o;
+            }
+            else if (cleanName.includes('foot') && !cleanName.includes('toe')) {
+                if (isLeft) bones.FootL = o; else if (isRight) bones.FootR = o;
+            }
+        }
+    });
+
+    // 儲存乾淨的原始縮放比例
+    for(let key in bones) {
+        if(bones[key]) {
+            initScales[key] = bones[key].scale.clone();
+        }
+    }
+}
+
+function setupSliders() {
+    const conf = bodyConfig[currentGender];
+    ['Shoulders', 'Chest', 'Waist', 'Hips', 'Thighs', 'Calves', 'Shoes'].forEach(part => {
+        const slider = document.getElementById(`slider_${part}`);
+        const numInput = document.getElementById(`num_${part}`);
+        if(slider && numInput && conf[part]) {
+            slider.min = conf[part].min;
+            slider.max = conf[part].max;
+            slider.value = conf[part].default;
+            numInput.value = conf[part].default;
+        }
+    });
+    currentSliders = { Hips: 1.0, Waist: 1.0, Chest: 1.0, Shoulders: 1.0, Thighs: 1.0, Calves: 1.0, Shoes: 1.0 };
+    applyAllBones();
+}
+
+function syncInput(part, val) {
+    let numVal = parseFloat(val);
+    const conf = bodyConfig[currentGender][part];
+
+    if(numVal < conf.min) numVal = conf.min;
+    if(numVal > conf.max) numVal = conf.max;
+
+    document.getElementById(`slider_${part}`).value = numVal;
+    document.getElementById(`num_${part}`).value = numVal;
+
+    currentSliders[part] = numVal / conf.default;
+    applyAllBones();
+}
+
+function dampen(ratio) {
+    return 1.0 + (ratio - 1.0) * 0.85;
+}
+function saveInitWorldScales(model) {
+    initWorldScales = {};
+    model.traverse((o) => {
+        if (o.isBone) {
+            let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+            o.matrixWorld.decompose(p, q, s);
+            initWorldScales[o.uuid] = s.clone();
+        }
+    });
+}
+
+// 矩陣手術刀
+function overrideWorldScale(bone, mx, my, mz) {
+    if (!bone || !initWorldScales[bone.uuid]) return;
+    let p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+    bone.matrixWorld.decompose(p, q, s);
+    let orig = initWorldScales[bone.uuid];
+    s.set(orig.x * mx, orig.y * my, orig.z * mz);
+    bone.matrixWorld.compose(p, q, s);
+    for (let i = 0; i < bone.children.length; i++) {
+        updateChildMatrixWorld(bone.children[i], bone.matrixWorld);
+    }
+}
+
+// 子骨頭連動
+function updateChildMatrixWorld(child, parentMatrixWorld) {
+    child.matrixWorld.multiplyMatrices(parentMatrixWorld, child.matrix);
+    for (let i = 0; i < child.children.length; i++) {
+        updateChildMatrixWorld(child.children[i], child.matrixWorld);
+    }
+}
+
+function applyAllBones() {
+    if (!currentModel) return;
+
+    // 將滑桿的極端數值稍微壓縮，保護模型不破圖，但保留明顯的視覺變化
+    let h = 1.0 + (currentSliders.Hips - 1.0) * 0.6;
+    let w = 1.0 + (currentSliders.Waist - 1.0) * 0.8; // 腰部變化放大
+    let c = 1.0 + (currentSliders.Chest - 1.0) * 0.6;
+    let s = 1.0 + (currentSliders.Shoulders - 1.0) * 0.5;
+    let t = 1.0 + (currentSliders.Thighs - 1.0) * 0.6;
+    let ca = 1.0 + (currentSliders.Calves - 1.0) * 0.6;
+    let f = 1.0 + (currentSliders.Shoes - 1.0) * 1.5;
+
+    // --- 下半身 ---
+    overrideWorldScale(bones.Hips, h, 1, h);
+    overrideWorldScale(bones.LegL, t, 1, t);
+    overrideWorldScale(bones.LegR, t, 1, t);
+    overrideWorldScale(bones.CalfL, ca, 1, ca);
+    overrideWorldScale(bones.CalfR, ca, 1, ca);
+    overrideWorldScale(bones.FootL, f, f, f);
+    overrideWorldScale(bones.FootR, f, f, f);
+
+    // --- 上半身軀幹 ---
+    // 1. 肚子 (Spine)：寬度微調，厚度(Z軸)放大，打造真實的「小腹往前凸」
+    let bellyX = 1.0 + (w - 1.0) * 0.8;
+    let bellyZ = 1.0 + (w - 1.0) * 1.3;
+    overrideWorldScale(bones.Spine, bellyX, 1, bellyZ);
+
+    // 2. 胃部 (Spine1)：取肚子和胸部的「平均值」，創造滑順的肉體過渡，拒絕水桶腰！
+    let blendX = (bellyX + c) / 2.0;
+    let blendZ = (bellyZ + c) / 2.0;
+    overrideWorldScale(bones.Spine1, blendX, 1, blendZ);
+
+    // 3. 胸腔 (Spine2)：套用胸圍比例
+    overrideWorldScale(bones.Spine2, c, 1, c);
+    overrideWorldScale(bones.Neck, 1, 1, 1); // 脖子鎖死防變形
+
+    // --- 肩膀與手臂 ---
+    // 4. 肩膀 (Shoulders)：★ 關鍵修復！只放大 X 軸(寬度)，Y和Z鎖定 1.0，徹底消滅大墊肩！
+    overrideWorldScale(bones.ShoulderL, s, s, s);
+    overrideWorldScale(bones.ShoulderR, s, s, s);
+
+    // 5. 手臂 (Arms)：★ 關鍵修復！讓手臂吸收 40% 的胸圍變胖比例，擺脫假假的竹竿手
+    let armScale = 1.0 + (currentSliders.Chest - 1.0) * 0.4;
+    overrideWorldScale(bones.ArmL, armScale, 1, armScale);
+    overrideWorldScale(bones.ArmR, armScale, 1, armScale);
+}
+
+function processModelGeometry(model) {
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    model.position.x -= center.x;
+    model.position.z -= center.z;
+
+    if (size.y > 0) {
+        const scale = 1.8 / size.y;
+        model.scale.set(scale, scale, scale);
+    }
+
+    const box2 = new THREE.Box3().setFromObject(model);
+    model.position.y -= box2.min.y;
+}
+
+function switchGender(gender) {
+    if(currentGender === gender) return;
+    currentGender = gender;
+    document.getElementById('btn-female').className = gender === 'female' ? "btn btn-sm rounded-pill w-50 fw-bold transition-btn active-gender" : "btn btn-sm rounded-pill w-50 fw-bold transition-btn text-muted";
+    document.getElementById('btn-male').className = gender === 'male' ? "btn btn-sm rounded-pill w-50 fw-bold transition-btn active-gender" : "btn btn-sm rounded-pill w-50 fw-bold transition-btn text-muted";
+
+    setupSliders();
+    loadModel(`avatar_${gender}.glb`);
+}
+
+function toggleSkeleton() { if(skeletonHelper) skeletonHelper.visible = document.getElementById('skeletonMode').checked; }
+function toggleWireframe() {
+    const isWire = document.getElementById('wireframeMode').checked;
+    if(currentModel) currentModel.traverse(o => { if(o.isMesh) o.material.wireframe = isWire; });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    if (mixer) mixer.update(delta);
+
+    scene.updateMatrixWorld(true);
+    applyAllBones();
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+function resetCamera() {
+    controls.target.set(0, 0.9, 0);
+    camera.position.set(0, 0.9, 0.8);
+    controls.update();
+}
+
+let chatHistory = [];
+
+async function sendAiCommand() {
+    const input = document.getElementById('aiPrompt');
+    const prompt = input.value.trim();
+    if(!prompt) return;
+
+    // 1. 顯示使用者輸入
+    addChatBubble(prompt, 'user');
+    input.value = '';
+
+    // 2. 顯示 AI 思考中狀態
+    const aiBubble = addChatBubble('<i class="fas fa-spinner fa-spin me-2"></i>正在思考...', 'ai');
+
+    if (!currentModel) {
+        aiBubble.innerHTML = '❌ 找不到 3D 模型，無法進行試穿。';
+        return;
+    }
+
+    try {
+        // ==========================================
+        // 步驟一：呼叫 Gemini AI，並附上過去的聊天紀錄
+        // ==========================================
+        const chatRes = await fetch('/api/ai_stylist_chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: prompt,
+                history: chatHistory // 傳送記憶給 AI
+            })
+        });
+
+        if (!chatRes.ok) throw new Error('AI 大腦連線失敗');
+        const chatData = await chatRes.json();
+
+        // 取得 AI 的回覆與動作指令
+        const replyText = chatData.data.reply;
+        const action = chatData.data.action;         // 'chat' 或 'change_texture'
+        const targetMaterial = chatData.data.visual_cues;
+
+        // 將這次的對話存入記憶中
+        chatHistory.push({ role: 'user', text: prompt });
+        chatHistory.push({ role: 'ai', text: replyText });
+        // 保持記憶不要太長，保留最近 6 句話就好
+        if (chatHistory.length > 6) chatHistory.splice(0, 2);
+
+        // ==========================================
+        // 步驟二：判斷 AI 要閒聊還是要換衣服
+        // ==========================================
+        if (action === 'chat' || !targetMaterial) {
+            // 純閒聊模式：只更新文字，不呼叫 3D API
+            aiBubble.innerHTML = `<b>AI 造型師：</b><br>${replyText}`;
+            return; // 結束執行
+        }
+
+        // 以下為換衣服模式：
+        aiBubble.innerHTML = `<b>AI 造型師：</b><br>${replyText}<br><br><small class="text-muted"><i class="fas fa-magic me-1"></i>正在為您的 3D 模型生成實體材質...</small>`;
+
+        // ==========================================
+        // 步驟三：執行 3D 貼圖 API
+        // ==========================================
+        const texRes = await fetch('/api/generate_3d_texture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: targetMaterial })
+        });
+
+        if (!texRes.ok) throw new Error('3D 材質生成失敗');
+        const texData = await texRes.json();
+        const textureUrls = texData.texture_data || {};
+
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.setCrossOrigin('anonymous');
+
+        const loadTexture = (url) => {
+            return new Promise((resolve, reject) => {
+                if (!url) { resolve(null); return; }
+                const finalUrl = url.startsWith('http') ? `/api/proxy_texture?url=${encodeURIComponent(url)}` : url;
+                textureLoader.load(finalUrl, (tex) => {
+                    tex.flipY = false;
+                    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                    resolve(tex);
+                }, undefined, reject);
+            });
+        };
+
+        const [colorMap, normalMap] = await Promise.all([
+            loadTexture(textureUrls.map),
+            loadTexture(textureUrls.normalMap)
+        ]);
+
+        currentModel.traverse((child) => {
+            if (child.isMesh && child.material) {
+                let matName = (child.material.name || "").toLowerCase();
+                let meshName = (child.name || "").toLowerCase();
+
+                let isBodyPart = /body|head|face|hair|eye|skin|hand|foot|teeth|neck/i.test(meshName + matName);
+                let isClothPart = /shirt|cloth|top|bottom|pant|skirt|jacket|dress/i.test(meshName + matName);
+
+                if (isClothPart || (!isBodyPart && matName !== "")) {
+                    child.material = child.material.clone();
+                    if (colorMap) child.material.map = colorMap;
+                    if (normalMap) {
+                        child.material.normalMap = normalMap;
+                        child.material.normalScale.set(1.5, 1.5);
+                    }
+                    child.material.roughness = 0.8;
+                    child.material.metalness = 0.1;
+                    child.material.needsUpdate = true;
+                }
+            }
+        });
+
+        aiBubble.innerHTML = `<b>AI 造型師：</b><br>${replyText}<br><br><span class="text-success"><i class="fas fa-check-circle me-1"></i>已為您換上「${targetMaterial}」！</span>`;
+
+    } catch (error) {
+        console.error('系統錯誤:', error);
+        aiBubble.innerHTML = `❌ 發生錯誤：${error.message}`;
+    }
+}
+
+function addChatBubble(text, type) {
+    const chatArea = document.getElementById('chatArea');
+    const div = document.createElement('div');
+    div.className = `d-flex flex-column ${type === 'user' ? 'align-items-end' : 'align-items-start'} mb-2`;
+    div.innerHTML = `<div class="p-3 small ${type === 'user' ? 'user-bubble' : 'ai-bubble'}" style="max-width: 85%;">${text}</div>`;
+    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+    return div.querySelector('.p-3');
+}
+
+function generateRealPhoto() {
+    const imgData = renderer.domElement.toDataURL('image/jpeg', 0.9);
+    document.getElementById('resultImage').src = imgData;
+    document.getElementById('downloadLink').href = imgData;
+    new bootstrap.Modal(document.getElementById('resultModal')).show();
+}
+
+function handleEnter(e) { if(e.key === 'Enter') sendAiCommand(); }
+
+function syncBodyFromScan() {
+    const btn = document.querySelector('button[onclick="syncBodyFromScan()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>同步中...';
+    setTimeout(() => {
+        btn.className = "btn btn-success w-100 mb-4 rounded-pill py-2 fw-bold shadow-sm";
+        btn.innerHTML = '<i class="fas fa-check me-2"></i>同步完成';
+
+        const mockData = currentGender === 'female'
+            ? {Chest: 95, Waist: 62, Hips: 98, Thighs: 58, Calves: 35}
+            : {Chest: 110, Waist: 78, Hips: 102, Thighs: 62, Calves: 40};
+
+        Object.keys(mockData).forEach(part => {
+            syncInput(part, mockData[part]);
+        });
+
+        setTimeout(() => {
+            btn.className = "btn btn-dark w-100 mb-4 rounded-pill py-2 fw-bold shadow-sm";
+            btn.innerHTML = originalText;
+        }, 2000);
+    }, 1500);
 }
 </script>
 {% endblock %}

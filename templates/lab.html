@@ -1,101 +1,129 @@
 {% extends "base.html" %}
 
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="container py-5">
 
-    <div class="text-center mb-5">
-        <h2 class="fw-bold" style="color: #D4A5A5;">🧪 風格實驗室</h2>
-        <p class="text-muted">探索、模擬、理解 AI 的決策過程</p>
+    <div class="text-center mb-5 fade-in">
+        <h2 class="fw-bold" style="color: var(--primary-color);">
+            <i class="fas fa-flask me-2"></i>風格實驗室 (Style Lab)
+        </h2>
+        <p class="text-muted">解構 AI 大腦，探索穿搭的視覺科學與數據秘密。</p>
     </div>
 
-    <ul class="nav nav-pills mb-4 justify-content-center gap-2" id="pills-tab" role="tablist">
+    <ul class="nav nav-pills mb-5 justify-content-center gap-2" id="pills-tab" role="tablist">
         <li class="nav-item">
-            <button class="nav-link active rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-xai">
-                <i class="fas fa-brain me-2"></i>透明化推薦 (XAI)
+            <button class="nav-link active rounded-pill px-4 shadow-sm fw-bold border" id="pills-xai-tab" data-bs-toggle="pill" data-bs-target="#tab-xai" type="button">
+                <i class="fas fa-brain me-2"></i>AI 決策透視
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-visual">
-                <i class="fas fa-eye me-2"></i>視覺錯覺模擬
+            <button class="nav-link rounded-pill px-4 shadow-sm fw-bold border" id="pills-visual-tab" data-bs-toggle="pill" data-bs-target="#tab-visual" type="button">
+                <i class="fas fa-eye me-2"></i>視覺比例模擬
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-stability">
-                <i class="fas fa-chart-line me-2"></i>風格穩定度
+            <button class="nav-link rounded-pill px-4 shadow-sm fw-bold border" id="pills-stability-tab" data-bs-toggle="pill" data-bs-target="#tab-stability" type="button">
+                <i class="fas fa-chart-radar me-2"></i>風格穩定度
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link rounded-pill px-4 border" data-bs-toggle="pill" data-bs-target="#tab-safe">
+            <button class="nav-link rounded-pill px-4 shadow-sm fw-bold border" id="pills-safe-tab" data-bs-toggle="pill" data-bs-target="#tab-safe" type="button">
                 <i class="fas fa-shield-alt me-2"></i>安心穿搭
             </button>
         </li>
     </ul>
 
-    <div class="tab-content">
+    <div class="tab-content" id="pills-tabContent">
 
         <div class="tab-pane fade show active" id="tab-xai">
             <div class="row justify-content-center">
                 <div class="col-md-8">
-                    <div class="glass-card">
-                        <h5 class="fw-bold mb-3 text-primary">💡 為什麼 AI 推薦這個？</h5>
-                        <p class="text-muted small">調整下方的權重滑動條，看看 AI 是如何根據不同因素做出決策的。</p>
+                    <div class="glass-card shadow-sm border-0">
+                        <h5 class="fw-bold mb-4 text-primary"><i class="fas fa-sliders-h me-2"></i>調整 AI 權重因子</h5>
+                        <p class="text-muted small mb-4">試著拖動下方的權重，觀察 AI 推薦邏輯的即時變化。這能幫助您理解系統是如何為您挑選衣服的。</p>
 
                         <div class="mb-4">
-                            <label class="form-label d-flex justify-content-between">
-                                <span>😶 臉型修飾</span> <span id="val-face">40%</span>
+                            <label class="form-label d-flex justify-content-between fw-bold">
+                                <span>😶 臉型修飾優先 (Face)</span> <span id="val-face" class="text-primary">40%</span>
                             </label>
                             <input type="range" class="form-range" id="range-face" min="0" max="100" value="40" oninput="updateSliders()">
                         </div>
                         <div class="mb-4">
-                            <label class="form-label d-flex justify-content-between">
-                                <span>💃 身材比例</span> <span id="val-body">40%</span>
+                            <label class="form-label d-flex justify-content-between fw-bold">
+                                <span>💃 身材比例優先 (Body)</span> <span id="val-body" class="text-primary">40%</span>
                             </label>
                             <input type="range" class="form-range" id="range-body" min="0" max="100" value="40" oninput="updateSliders()">
                         </div>
-                        <div class="mb-4">
-                            <label class="form-label d-flex justify-content-between">
-                                <span>❤️ 個人偏好</span> <span id="val-pref">20%</span>
+                        <div class="mb-5">
+                            <label class="form-label d-flex justify-content-between fw-bold">
+                                <span>❤️ 個人喜好優先 (Pref)</span> <span id="val-pref" class="text-primary">20%</span>
                             </label>
                             <input type="range" class="form-range" id="range-pref" min="0" max="100" value="20" oninput="updateSliders()">
                         </div>
 
-                        <div class="alert alert-light border mt-3">
-                            <strong>🤖 AI 決策邏輯：</strong>
-                            <p class="mb-0 mt-2" id="xai-reason">這是一個完美的平衡選擇，兼顧了修飾性與個人風格。</p>
+                        <div class="alert alert-light border border-primary border-opacity-25 rounded-4 shadow-sm d-flex align-items-start bg-white">
+                            <div class="me-3 mt-1">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <strong class="d-block mb-1 text-dark">AI 演算邏輯預覽：</strong>
+                                <p class="mb-0 text-secondary" id="xai-reason">
+                                    當前設定為平衡模式，兼顧修飾性與個人風格，推薦結果將最為中庸且實穿。
+                                </p>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="glass-card border-danger">
-                        <h5 class="fw-bold mb-3 text-danger"><i class="fas fa-thumbs-down me-2"></i>反向推薦：我不喜歡...</h5>
-                        <div class="d-flex gap-2">
-                            <button class="btn btn-outline-danger rounded-pill" onclick="testReverse('skinny_jeans')">緊身褲</button>
-                            <button class="btn btn-outline-danger rounded-pill" onclick="testReverse('crop_top')">短版上衣</button>
-                            <button class="btn btn-outline-danger rounded-pill" onclick="testReverse('high_neck')">高領衫</button>
-                        </div>
-                        <div id="reverse-reason" class="mt-3 text-danger small fw-bold"></div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="tab-pane fade" id="tab-visual">
-            <div class="row justify-content-center">
-                <div class="col-md-6">
-                    <div class="glass-card text-center">
-                        <h5 class="fw-bold mb-4">腰線位置對比例的影響</h5>
+            <div class="row justify-content-center align-items-center">
+                <div class="col-md-5 text-center mb-4 mb-md-0">
+                    <div class="position-relative mx-auto bg-white border rounded-4 shadow-sm overflow-hidden" style="width: 260px; height: 500px;">
 
-                        <div class="position-relative mx-auto bg-light border rounded" style="width: 200px; height: 400px; overflow: hidden;">
-                            <div id="sim-top" class="bg-primary opacity-75 position-absolute w-100" style="height: 40%; top: 0; transition: 0.3s;"></div>
-                            <div id="sim-bottom" class="bg-dark opacity-75 position-absolute w-100" style="height: 60%; bottom: 0; transition: 0.3s;"></div>
-                            <img src="https://i.imgur.com/7Z8Qy9M.png" class="position-absolute top-0 start-0 w-100 h-100" style="opacity: 0.3; object-fit: contain; pointer-events: none;" alt="Silhouette">
+                        <div id="sim-top" class="position-absolute w-100 start-0 top-0 d-flex align-items-center justify-content-center text-white fw-bold"
+                             style="height: 40%; background-color: var(--primary-color); transition: height 0.3s ease; z-index: 1;">
+                            Top
                         </div>
 
-                        <div class="mt-4">
-                            <label class="form-label">調整腰線位置</label>
-                            <input type="range" class="form-range" min="20" max="60" value="40" oninput="updateWaist(this.value)">
-                            <div class="d-flex justify-content-between small text-muted">
-                                <span>低腰 (顯腰長)</span>
-                                <span>高腰 (顯腿長)</span>
+                        <div id="sim-bottom" class="position-absolute w-100 start-0 bottom-0 d-flex align-items-center justify-content-center text-white fw-bold"
+                             style="height: 60%; background-color: #333; transition: height 0.3s ease; z-index: 1;">
+                            Bottom
+                        </div>
+
+                        <i class="fas fa-female position-absolute top-50 start-50 translate-middle text-white"
+                           style="font-size: 380px; opacity: 0.25; z-index: 2; pointer-events: none;"></i>
+
+                        <div id="waist-line" class="position-absolute w-100 border-top border-2 border-warning border-dashed"
+                             style="top: 40%; transition: top 0.3s ease; z-index: 3;">
+                            <span class="badge bg-warning text-dark position-absolute start-0 translate-middle-y ms-1 shadow-sm">腰線位置</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-5">
+                    <div class="glass-card h-100 d-flex flex-column justify-content-center">
+                        <h4 class="fw-bold mb-3 text-dark">腰線魔法 (Waistline Magic)</h4>
+                        <p class="text-muted mb-4">拖動下方滑桿改變腰線位置，親眼見證「腿長」如何在視覺上被改變。這就是為什麼高腰褲如此受歡迎的原因。</p>
+
+                        <label class="form-label fw-bold text-dark">調整腰線位置</label>
+                        <input type="range" class="form-range" min="20" max="60" value="40" oninput="updateWaist(this.value)">
+
+                        <div class="d-flex justify-content-between small fw-bold mt-2">
+                            <span class="text-danger">低腰 (顯腰長/腿短)</span>
+                            <span class="text-success">高腰 (顯腿長/比例好)</span>
+                        </div>
+
+                        <div class="alert alert-info border-0 bg-info bg-opacity-10 mt-4 rounded-3 d-flex">
+                            <i class="fas fa-lightbulb me-3 mt-1 text-info"></i>
+                            <div class="small">
+                                <strong>專家建議：</strong> <br>
+                                對於亞洲人普遍的 5:5 身材，將腰線提高至全身的 35%~40% 處 (肚臍上 2 指)，是調整比例最簡單有效的方法。
                             </div>
                         </div>
                     </div>
@@ -105,21 +133,21 @@
 
         <div class="tab-pane fade" id="tab-stability">
             <div class="row justify-content-center">
-                <div class="col-md-8">
-                    <div class="glass-card text-center py-5">
-                        <div class="mb-3">
-                            <i class="fas fa-chart-pie fa-4x text-info"></i>
+                <div class="col-lg-6 col-md-8">
+                    <div class="glass-card text-center h-100">
+                        <h5 class="fw-bold mb-4">📊 您的風格 DNA 雷達</h5>
+
+                        <div style="position: relative; height: 350px; width: 100%;">
+                            <canvas id="stabilityChart"></canvas>
                         </div>
-                        <h3 class="fw-bold text-dark">{{ stability }}</h3>
-                        <p class="text-muted mt-3">
-                            此指標分析您最近 5 次的穿搭偏好變異程度。<br>
-                            {% if stability == '風格穩定型 (Stable)' %}
-                                您很清楚自己適合什麼，繼續保持！
-                            {% elif stability == '多元嘗試期 (Versatile)' %}
-                                您正在勇於嘗試各種風格，這是好事！
-                            {% else %}
-                                讓我們多做幾次分析，找出您的命定風格吧。
-                            {% endif %}
+
+                        <div class="mt-4">
+                            <span class="badge bg-primary rounded-pill px-4 py-2 fs-6 shadow-sm">
+                                目前狀態：風格探索期 (Versatile)
+                            </span>
+                        </div>
+                        <p class="text-muted mt-3 small px-4">
+                            此圖表分析您最近 5 次的選擇偏好。面積越大代表風格越鮮明固定；面積越小或形狀越扁，代表您正在嘗試不同風格。
                         </p>
                     </div>
                 </div>
@@ -129,19 +157,27 @@
         <div class="tab-pane fade" id="tab-safe">
             <div class="row justify-content-center">
                 <div class="col-md-6 text-center">
-                    <div class="glass-card py-5">
-                        <i class="fas fa-feather-alt fa-3x text-success mb-3"></i>
-                        <h4 class="fw-bold">不想動腦？</h4>
-                        <p class="text-muted">點擊按鈕，AI 給您最安全、絕不出錯的舒適選擇。</p>
-                        <button class="btn btn-success btn-lg rounded-pill shadow px-5 mt-3" onclick="getSafeChoice()">
-                            幫我選一套
+                    <div class="glass-card py-5 border-top border-5 border-success">
+                        <div class="mb-4">
+                            <div class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 rounded-circle text-success" style="width: 80px; height: 80px;">
+                                <i class="fas fa-feather-alt fa-3x"></i>
+                            </div>
+                        </div>
+
+                        <h3 class="fw-bold text-dark">今天不想動腦？</h3>
+                        <p class="text-muted mb-4 px-4">
+                            點擊按鈕，AI 將為您生成一套「絕對不出錯」的安全牌穿搭。適合趕時間、不想思考搭配的早晨。
+                        </p>
+
+                        <button class="btn btn-success btn-lg rounded-pill shadow-sm px-5 fw-bold hover-scale" onclick="getSafeChoice()">
+                            <i class="fas fa-magic me-2"></i> 生成安心套裝
                         </button>
 
-                        <div id="safe-result" class="mt-4 d-none fade-in">
-                            <div class="card border-success mb-3">
-                                <div class="card-header bg-success text-white fw-bold" id="safe-title"></div>
-                                <div class="card-body text-success">
-                                    <p class="card-text" id="safe-desc"></p>
+                        <div id="safe-result" class="mt-5 d-none fade-in text-start mx-4">
+                            <div class="card border-0 shadow-sm bg-light">
+                                <div class="card-body p-4">
+                                    <h5 class="card-title fw-bold text-success mb-3" id="safe-title"></h5>
+                                    <p class="card-text text-secondary mb-0" id="safe-desc" style="line-height: 1.8;"></p>
                                 </div>
                             </div>
                         </div>
@@ -154,65 +190,131 @@
 </div>
 
 <script>
-// 1. XAI 滑動條邏輯
+// ==========================================
+// 1. XAI 滑動條邏輯 (前端模擬)
+// ==========================================
 function updateSliders() {
-    let face = document.getElementById('range-face').value;
-    let body = document.getElementById('range-body').value;
-    let pref = document.getElementById('range-pref').value;
+    let face = parseInt(document.getElementById('range-face').value);
+    let body = parseInt(document.getElementById('range-body').value);
+    let pref = parseInt(document.getElementById('range-pref').value);
 
     document.getElementById('val-face').innerText = face + '%';
     document.getElementById('val-body').innerText = body + '%';
     document.getElementById('val-pref').innerText = pref + '%';
 
-    // Debounce API call could be added here
-    fetch('/api/lab/recalc_xai', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ face: face, body: body, pref: pref })
-    })
-    .then(r => r.json())
-    .then(data => {
-        document.getElementById('xai-reason').innerText = data.reason;
-    });
+    // 前端邏輯模擬，讓介面有即時反應
+    let reasonText = "";
+    if (body > 60) {
+        reasonText = "⚠️ 當前權重極度重視「身材修飾」，AI 將優先推薦顯瘦、遮肉的款式 (如 A 字裙、寬褲)，可能會犧牲一些流行元素。";
+    } else if (pref > 60) {
+        reasonText = "❤️ 當前權重極度重視「個人喜好」，AI 將大膽推薦您喜歡的風格，即使它可能稍微顯胖或不修飾臉型。";
+    } else if (face > 60) {
+        reasonText = "😶 當前權重極度重視「臉型修飾」，AI 將專注於領口剪裁 (如 V 領、方領) 與配飾建議，以達到小臉效果。";
+    } else {
+        reasonText = "✅ 這是一個完美的平衡選擇！AI 將綜合考量修飾性與風格，為您找出最耐看的日常穿搭。";
+    }
+
+    document.getElementById('xai-reason').innerText = reasonText;
 }
 
-// 2. 反向推薦
-function testReverse(type) {
-    fetch('/api/lab/reverse_rec', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ type: type })
-    })
-    .then(r => r.json())
-    .then(data => {
-        document.getElementById('reverse-reason').innerText = "🚫 " + data.explanation;
-    });
-}
-
-// 3. 視覺錯覺 (CSS)
+// ==========================================
+// 2. 視覺錯覺 (CSS 動態調整)
+// ==========================================
 function updateWaist(val) {
-    // val 越小 = 上身越短 = 高腰
-    // val 越大 = 上身越長 = 低腰
-    // Input range is 20 (High) to 60 (Low)
+    // val (Input range): 20 (Top) -> 60 (Bottom)
+    // 轉換為百分比高度
+
     document.getElementById('sim-top').style.height = val + '%';
     document.getElementById('sim-bottom').style.height = (100 - val) + '%';
+
+    // 調整虛線位置 (top 屬性)
+    document.getElementById('waist-line').style.top = val + '%';
 }
 
-// 4. 安心穿搭
+// ==========================================
+// 3. 安心穿搭 (模擬 API 延遲)
+// ==========================================
 function getSafeChoice() {
-    fetch('/api/lab/safe_choice', { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
+    const btn = document.querySelector('button[onclick="getSafeChoice()"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>思考中...';
+    btn.disabled = true;
+
+    // 模擬網路請求
+    setTimeout(() => {
+        const safeData = {
+            title: "經典極簡風 (The Minimalist Standard)",
+            desc: "👔 **白 T 恤 + 直筒深藍牛仔褲 + 小白鞋**\n\n這是永不過時的黃金組合，無論是休閒辦公還是週末逛街都得體大方。\n\n💡 **穿法秘訣**：\n建議將 T 恤紮進褲子裡，並稍微捲起褲管露出腳踝，能讓整體比例瞬間拉長 5 公分。"
+        };
+
         let res = document.getElementById('safe-result');
         res.classList.remove('d-none');
-        document.getElementById('safe-title').innerText = data.data.title;
-        document.getElementById('safe-desc').innerText = data.data.desc;
-    });
+        document.getElementById('safe-title').innerText = safeData.title;
+        document.getElementById('safe-desc').innerText = safeData.desc;
+
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }, 800);
 }
+
+// ==========================================
+// 4. 雷達圖初始化 (Chart.js)
+// ==========================================
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('stabilityChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['甜美', '酷帥', '簡約', '優雅', '運動'],
+                datasets: [{
+                    label: '近期偏好強度',
+                    data: [80, 40, 60, 50, 30], // 這裡可由後端傳入真實數據
+                    fill: true,
+                    backgroundColor: 'rgba(212, 165, 165, 0.2)', // 莫蘭迪粉半透明
+                    borderColor: '#D4A5A5',
+                    pointBackgroundColor: '#D4A5A5',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: '#D4A5A5'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                elements: {
+                    line: { borderWidth: 3 }
+                },
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(0,0,0,0.1)' },
+                        grid: { color: 'rgba(0,0,0,0.1)' },
+                        pointLabels: {
+                            font: { size: 14, family: "'Noto Sans TC', sans-serif" },
+                            color: '#666'
+                        },
+                        suggestedMin: 0,
+                        suggestedMax: 100
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    }
+});
 </script>
 
 <style>
-    .fade-in { animation: fadeIn 0.5s; }
+    .hover-scale:hover { transform: scale(1.05); transition: 0.2s; }
+    .fade-in { animation: fadeIn 0.6s ease-out; }
     @keyframes fadeIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } }
+
+    /* 自定義 Range Slider 顏色 */
+    input[type=range] {
+        accent-color: var(--primary-color);
+        cursor: pointer;
+    }
 </style>
 {% endblock %}

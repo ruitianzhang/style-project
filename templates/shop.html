@@ -1,147 +1,184 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="container py-4">
-    
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="fw-bold mb-0" style="color: #D4A5A5;">🛒 嚴選商城</h3>
-            <small class="text-muted">AI 智能媒合，整合全球時尚資源</small>
-        </div>
+<div class="container py-5">
 
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary rounded-pill btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                <i class="fas fa-globe me-1"></i> {{ locale }}
-            </button>
-            <ul class="dropdown-menu">
-                <li><a class="dropdown-item" href="/set_locale/zh_TW">🇹🇼 台灣 (Asian Fit)</a></li>
-                <li><a class="dropdown-item" href="/set_locale/en_US">🇺🇸 Global (US/EU Fit)</a></li>
-            </ul>
-        </div>
-    </div>
-
-    <div class="glass-card p-3 mb-4">
-        <form action="/shop" method="GET" class="row g-2 align-items-center">
-            <div class="col-md-3">
-                <select name="category" class="form-select border-0 shadow-sm">
-                    <option value="">📁 全部分類</option>
-                    <option value="top" {% if current_cat=='top' %}selected{% endif %}>👕 上身 (Tops)</option>
-                    <option value="bottom" {% if current_cat=='bottom' %}selected{% endif %}>👖 下身 (Bottoms)</option>
-                </select>
-            </div>
-            <div class="col-md-5">
-                <div class="input-group shadow-sm">
-                    <span class="input-group-text bg-white border-0 text-muted">$</span>
-                    <input type="number" name="min" class="form-control border-0" placeholder="Min" value="{{ min_p }}">
-                    <span class="input-group-text bg-white border-0 text-muted">-</span>
-                    <input type="number" name="max" class="form-control border-0" placeholder="Max" value="{{ max_p }}">
-                </div>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <button type="submit" class="btn btn-style text-white rounded-pill px-4">
-                    <i class="fas fa-filter me-1"></i> 篩選
+    <div class="row justify-content-center mb-5 fade-in">
+        <div class="col-md-6 text-center">
+            <div class="bg-white p-1 rounded-pill shadow-sm d-inline-flex border">
+                <button class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" style="min-width: 140px;">
+                    <i class="fas fa-shopping-bag me-2"></i>逛街購物
                 </button>
-                <a href="/shop" class="btn btn-outline-secondary rounded-pill px-3 ms-1">重置</a>
+                <a href="{{ url_for('seller_center_page') }}" class="btn btn-link text-decoration-none text-muted rounded-pill px-4 fw-bold hover-bg-light" style="min-width: 140px;">
+                    <i class="fas fa-store me-2"></i>賣家中心
+                </a>
             </div>
-        </form>
+        </div>
     </div>
 
-    <div class="row g-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 fade-in gap-3">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: var(--primary-color);">
+                <i class="fas fa-search-dollar me-2"></i>風格市集
+            </h3>
+            <p class="text-muted mb-0 small">探索獨一無二的二手與設計師單品</p>
+        </div>
+
+        <div class="d-flex gap-2 w-100 w-md-auto">
+            <div class="input-group shadow-sm rounded-pill overflow-hidden bg-white border" style="max-width: 400px;">
+                <span class="input-group-text bg-white border-0 ps-3"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="shopSearch" class="form-control border-0 px-2"
+                       placeholder="搜尋單品..."
+                       value="{{ request.args.get('q', '') }}"
+                       onkeypress="handleShopEnter(event)">
+                <button class="btn btn-primary px-4 fw-bold" onclick="searchShop()">搜尋</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 overflow-auto mb-4 pb-2 fade-in no-scrollbar" style="white-space: nowrap;">
+        <a href="{{ url_for('shop_page') }}" class="btn btn-sm {{ 'btn-primary' if not current_cat else 'btn-outline-secondary' }} rounded-pill px-3 fw-bold">全部</a>
+        <a href="{{ url_for('shop_page', category='top') }}" class="btn btn-sm {{ 'btn-primary' if current_cat=='top' else 'btn-outline-secondary' }} rounded-pill px-3">👕 上身</a>
+        <a href="{{ url_for('shop_page', category='bottom') }}" class="btn btn-sm {{ 'btn-primary' if current_cat=='bottom' else 'btn-outline-secondary' }} rounded-pill px-3">👖 下身</a>
+        <a href="{{ url_for('shop_page', category='outer') }}" class="btn btn-sm {{ 'btn-primary' if current_cat=='outer' else 'btn-outline-secondary' }} rounded-pill px-3">🧥 外套</a>
+        <a href="{{ url_for('shop_page', category='acc') }}" class="btn btn-sm {{ 'btn-primary' if current_cat=='acc' else 'btn-outline-secondary' }} rounded-pill px-3">💍 配件</a>
+        <a href="{{ url_for('shop_page', category='shoes') }}" class="btn btn-sm {{ 'btn-primary' if current_cat=='shoes' else 'btn-outline-secondary' }} rounded-pill px-3">👟 鞋靴</a>
+    </div>
+
+    {% if items %}
+    <div class="row g-4 fade-in">
         {% for item in items %}
-        <div class="col-6 col-md-3">
-            <div class="glass-card p-0 h-100 position-relative overflow-hidden group hover-up">
+        <div class="col-6 col-md-3" id="item-{{ item.id }}">
+            <div class="glass-card h-100 p-0 overflow-hidden hover-up position-relative group border-0 shadow-sm" style="border-radius: 16px;">
 
-                <div class="position-absolute top-0 end-0 m-2 z-index-1">
-                    {% if item.is_external %}
-                        <span class="badge bg-dark text-white shadow-sm">
-                            <i class="fas fa-external-link-alt me-1"></i>外部夥伴
-                        </span>
-                    {% elif item.is_ad %}
-                        <span class="badge bg-light text-muted border shadow-sm">贊助</span>
-                    {% else %}
-                        <span class="badge bg-success bg-opacity-75 shadow-sm">
-                            <i class="fas fa-shield-alt me-1"></i>AI嚴選
-                        </span>
-                    {% endif %}
-                </div>
+                <div class="position-relative overflow-hidden">
+                    <img src="{{ item.image }}" class="w-100 transition-zoom" style="height: 260px; object-fit: cover;" loading="lazy">
 
-                <div class="ratio ratio-1x1 bg-light">
-                    <img src="{{ item.image if item.image.startswith('http') else url_for('static', filename=item.image) }}"
-                         class="w-100 h-100"
-                         style="object-fit: cover;"
-                         alt="{{ item.title }}">
+                    <div class="position-absolute bottom-0 start-0 m-2">
+                        <span class="badge bg-white text-dark shadow-sm backdrop-blur border fw-bold px-2 py-1">
+                            {{ currency }} {{ item.price }}
+                        </span>
+                    </div>
+
+                    <button class="btn btn-light btn-sm rounded-circle position-absolute top-0 end-0 m-2 shadow fav-btn"
+                            onclick="toggleFav(this, '{{ item.id }}')" title="加入收藏">
+                        <i class="far fa-heart text-danger"></i>
+                    </button>
+
+                    <div class="position-absolute top-0 start-0 m-2" title="賣家: {{ item.seller_name }}">
+                        <img src="{{ item.seller_avatar }}" class="rounded-circle border border-2 border-white shadow-sm" width="32" height="32">
+                    </div>
                 </div>
 
                 <div class="p-3 d-flex flex-column h-100">
-                    <div class="d-flex justify-content-between align-items-start mb-1">
-                        <small class="text-muted text-uppercase fw-bold">{{ item.brand }}</small>
-                        {% if not item.is_ad and not item.is_external %}
-                        <small class="text-success fw-bold" title="AI 推薦信心值">
-                            {{ item.trust }}% <i class="fas fa-check-circle"></i>
-                        </small>
-                        {% endif %}
+                    <small class="text-muted d-block mb-1 text-truncate" style="font-size: 0.75rem;">{{ item.brand }}</small>
+                    <h6 class="fw-bold text-dark text-truncate mb-2">{{ item.title }}</h6>
+
+                    <div class="mb-3 d-flex gap-1 overflow-hidden" style="height: 24px;">
+                        {% for tag in item.tags[:2] %}
+                        <span class="badge bg-light text-secondary border fw-normal" style="font-size: 0.65rem;">#{{ tag }}</span>
+                        {% endfor %}
                     </div>
 
-                    <h6 class="fw-bold text-dark text-truncate mb-1">{{ item.title }}</h6>
-                    <h5 class="text-primary fw-bold mb-3">{{ currency }} {{ item.price }}</h5>
-
-                    <div class="mt-auto d-grid gap-2">
-                        {% if item.is_external %}
-                            <a href="{{ item.link }}" target="_blank" class="btn btn-sm btn-outline-dark rounded-pill">
-                                前往官網查看 <i class="fas fa-arrow-right ms-1"></i>
-                            </a>
-                        {% else %}
-                            <button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="alert('已加入比價清單')">
-                                <i class="fas fa-list me-1"></i> 清單
-                            </button>
-                            <button class="btn btn-sm btn-style text-white rounded-pill">
-                                <i class="fas fa-shopping-cart me-1"></i> 加入購物車
-                            </button>
-                        {% endif %}
+                    <div class="mt-auto">
+                        <button class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-bold hover-scale" onclick="alert('功能開發中：即將前往結帳頁面')">
+                            立即購買
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
-
-    {% if items|length == 0 %}
-    <div class="text-center py-5">
-        <i class="fas fa-box-open fa-3x text-muted mb-3 opacity-25"></i>
-        <p class="text-muted">找不到符合價格區間的商品，試試看調整篩選條件？</p>
+    {% else %}
+    <div class="text-center py-5 fade-in">
+        <div class="mb-3 text-muted opacity-25">
+            <i class="fas fa-box-open fa-5x"></i>
+        </div>
+        <h5 class="fw-bold text-secondary">找不到相關商品</h5>
+        <p class="text-muted">試試看切換分類，或是搜尋其他關鍵字。</p>
+        <a href="{{ url_for('seller_center_page') }}" class="btn btn-primary rounded-pill px-4 shadow-sm mt-3">
+            <i class="fas fa-plus me-1"></i> 我要上架
+        </a>
     </div>
     {% endif %}
+
 </div>
 
-<style>
-    .hover-up { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-    .hover-up:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+<script>
+// 搜尋功能
+function searchShop() {
+    let key = document.getElementById('shopSearch').value.trim();
+    // 構建新的 URL，保留當前分類但更新關鍵字
+    let url = new URL(window.location.href);
+    url.searchParams.set('q', key);
+    // 如果搜尋空字串，則移除 q 參數
+    if(!key) url.searchParams.delete('q');
+    window.location.href = url.toString();
+}
 
-    .btn-style {
-        background-color: #D4A5A5;
-        border: 1px solid #D4A5A5;
+function handleShopEnter(e) {
+    if(e.key === 'Enter') searchShop();
+}
+
+// 收藏功能 (Optimistic UI)
+function toggleFav(btn, itemId) {
+    const icon = btn.querySelector('i');
+    const isLiked = icon.classList.contains('fas'); // 實心 = 已收藏
+
+    // 1. 前端即時回饋
+    if (isLiked) {
+        icon.classList.replace('fas', 'far');
+    } else {
+        icon.classList.replace('far', 'fas');
+        // 心跳動畫
+        icon.classList.add('animate__animated', 'animate__heartBeat');
+        setTimeout(() => icon.classList.remove('animate__animated', 'animate__heartBeat'), 1000);
     }
-    .btn-style:hover {
-        background-color: #c08e8e;
-        border-color: #c08e8e;
-    }
-    .glass-card {
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-    }
-    .ratio-1x1 {
-        position: relative;
-        width: 100%;
-        padding-top: 100%; /* 1:1 Aspect Ratio */
-    }
-    .ratio-1x1 > img {
-        position: absolute;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        right: 0;
-    }
+
+    // 2. 後端請求
+    fetch('/api/add_favorite', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ item_id: itemId })
+    }).then(r => r.json()).then(data => {
+        if(data.status !== 'success') {
+            // 失敗則回滾
+            if (!isLiked) icon.classList.replace('fas', 'far');
+            if(data.msg === 'login_required') {
+                if(confirm('請先登入才能收藏商品，是否前往登入？')) window.location.href = '/login';
+            }
+        }
+    });
+
+    // 防止點擊穿透
+    event.stopPropagation();
+}
+</script>
+
+<style>
+    /* 懸浮上移特效 */
+    .hover-up { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .hover-up:hover { transform: translateY(-8px); box-shadow: 0 12px 24px rgba(0,0,0,0.1) !important; }
+
+    /* 圖片放大特效 */
+    .transition-zoom { transition: transform 0.6s ease; }
+    .group:hover .transition-zoom { transform: scale(1.08); }
+
+    /* 模糊背景標籤 */
+    .backdrop-blur { backdrop-filter: blur(8px); background-color: rgba(255,255,255,0.85) !important; }
+
+    /* 按鈕樣式 */
+    .hover-bg-light:hover { background-color: #f8f9fa; color: var(--primary-color) !important; }
+    .fav-btn:active { transform: scale(0.9); }
+    .hover-scale:hover { transform: scale(1.02); }
+
+    /* 動畫 */
+    .fade-in { animation: fadeIn 0.6s ease-out; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(15px); } to { opacity:1; transform: translateY(0); } }
+
+    /* 隱藏捲軸但保留功能 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 </style>
 {% endblock %}

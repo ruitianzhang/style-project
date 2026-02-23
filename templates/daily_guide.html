@@ -1,68 +1,114 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div style="max-width: 800px; margin: 0 auto;">
-    
-    <div style="text-align: center; margin-bottom: 40px;">
-        <h2 style="color: #9b8ba3;">📅 每日穿搭嚮導</h2>
-        <p style="color: #666;">早安，{{ session.user_name }}！這是為您準備的今日策略。</p>
+<div class="container py-4">
+
+    <div class="text-center mb-5 fade-in">
+        <h2 class="fw-bold" style="color: var(--primary-color);">📅 每日穿搭嚮導</h2>
+        <p class="text-muted">早安，{{ session.user_name }}！這是為您準備的今日策略。</p>
     </div>
 
-    <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-        
-        <div class="card" style="flex: 1; min-width: 300px; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #555;">
-            <h3 style="margin-top: 0;">今日天氣 (Taoyuan)</h3>
-            <div style="font-size: 3em; font-weight: bold; margin: 10px 0;">
-                {{ weather.temp }}°C
+    <div class="row g-4 justify-content-center">
+
+        <div class="col-md-6 col-lg-5">
+            <div class="glass-card h-100 text-center border-0 shadow-sm"
+                 style="background: linear-gradient(135deg, rgba(168, 237, 234, 0.2) 0%, rgba(254, 214, 227, 0.2) 100%);">
+
+                <h5 class="fw-bold text-secondary mb-3">
+                    <i class="fas fa-cloud-sun me-2"></i>今日天氣 ({{ weather.location_name }})
+                </h5>
+
+                <div class="display-1 fw-bold my-3" style="color: #555;">
+                    {{ weather.temp }}<span style="font-size: 0.5em;">°C</span>
+                </div>
+
+                <div class="fs-5 mb-4 text-muted">
+                    <i class="fas fa-tint me-1 text-info"></i> {{ weather.humidity }}% | {{ weather.desc }}
+                </div>
+
+                <div class="alert bg-white bg-opacity-75 border-0 rounded-4 shadow-sm text-start d-flex align-items-center">
+                    <i class="fas fa-lightbulb text-warning fa-2x me-3"></i>
+                    <small class="text-muted">
+                        {% if weather.humidity > 80 %}
+                            濕度很高，體感會比實際溫度更悶熱，務必選擇透氣材質。
+                        {% elif weather.temp < 18 %}
+                            早晚溫差大，別忘了帶件外套。
+                        {% else %}
+                            氣候舒適宜人，非常適合展現多層次穿搭！
+                        {% endif %}
+                    </small>
+                </div>
             </div>
-            <div style="font-size: 1.2em; margin-bottom: 10px;">
-                濕度 {{ weather.humidity }}% | {{ weather.desc }}
-            </div>
-            <p style="background: rgba(255,255,255,0.6); padding: 10px; border-radius: 10px;">
-                💡 體感提示：
-                {% if weather.humidity > 80 %}
-                    濕度很高，體感會比實際溫度更悶熱，務必選擇透氣材質。
-                {% elif weather.temp < 18 %}
-                    早晚溫差大，別忘了帶件外套。
+        </div>
+
+        <div class="col-md-6 col-lg-5">
+            <div class="glass-card h-100 border-0 shadow-sm">
+                <h5 class="fw-bold text-secondary mb-3">
+                    <i class="far fa-calendar-check me-2"></i>今日行程
+                </h5>
+
+                {% if events %}
+                    <div class="d-flex flex-column gap-3">
+                        {% for event in events %}
+                        <div class="p-3 bg-white rounded-3 shadow-sm border-start border-4" style="border-color: var(--primary-color) !important;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong class="text-dark">{{ event.title }}</strong>
+                                <span class="badge bg-light text-secondary rounded-pill">Today</span>
+                            </div>
+                            {% if event.outfit_desc %}
+                            <div class="mt-2 small text-muted">
+                                <i class="fas fa-tshirt me-1"></i> {{ event.outfit_desc }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
                 {% else %}
-                    舒適宜人，適合各種穿搭！
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-coffee fa-3x mb-3 opacity-25"></i>
+                        <p>今天沒有特別安排，<br>穿上最自在的衣服享受一天吧！</p>
+                        <a href="/premium/calendar" class="btn btn-sm btn-outline-secondary rounded-pill mt-2">去行事曆規劃</a>
+                    </div>
                 {% endif %}
-            </p>
-        </div>
-
-        <div class="card" style="flex: 1; min-width: 300px;">
-            <h3 style="margin-top: 0;">今日行程</h3>
-            {% if events %}
-                {% for event in events %}
-                <div style="background: #fdfdfd; padding: 10px; border-left: 4px solid #9b8ba3; margin-bottom: 10px; border-radius: 5px;">
-                    <strong>{{ event.title }}</strong>
-                    <div style="font-size: 0.9em; color: #888;">{{ event.outfit_desc }}</div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div style="text-align: center; padding: 20px; color: #aaa;">
-                    今天沒有特別安排，享受自由的一天吧！
-                </div>
-            {% endif %}
+            </div>
         </div>
     </div>
 
-    <div class="card" style="margin-top: 20px; border: 2px solid #9b8ba3;">
-        <h3 style="color: #9b8ba3; text-align: center;">✨ AI 綜合穿搭建議</h3>
-        <div style="display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
-            <div style="font-size: 5em;">🧥</div> 
-            <div>
-                <ul style="line-height: 1.8; font-size: 1.1em;">
-                    {% for item in advice %}
-                        <li>{{ item }}</li>
-                    {% endfor %}
-                </ul>
+    <div class="row justify-content-center mt-4">
+        <div class="col-lg-10">
+            <div class="glass-card border-0 shadow-sm position-relative overflow-hidden">
+                <div class="position-absolute top-0 start-0 w-100 h-100 bg-primary opacity-10" style="pointer-events: none;"></div>
+
+                <div class="position-relative z-1 text-center p-3">
+                    <h4 class="fw-bold mb-4" style="color: var(--primary-color);">✨ AI 形象顧問建議</h4>
+
+                    <div class="d-flex align-items-start justify-content-center gap-4 text-start">
+                        <div class="d-none d-md-block">
+                            <img src="https://cdn-icons-png.flaticon.com/512/4202/4202831.png" width="80" alt="AI Icon">
+                        </div>
+                        <div class="bg-white p-4 rounded-4 shadow-sm flex-grow-1">
+                            <ul class="list-unstyled mb-0" style="line-height: 1.8;">
+                                {% for item in advice %}
+                                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="{{ url_for('shop_page') }}" class="btn btn-primary rounded-pill px-5 shadow-sm">
+                            <i class="fas fa-search me-2"></i>去衣櫃找類似單品
+                        </a>
+                    </div>
+                </div>
             </div>
-        </div>
-        <div style="text-align: center; margin-top: 20px;">
-            <a href="{{ url_for('shop_page') }}" class="btn btn-primary">去衣櫃找類似單品</a>
         </div>
     </div>
 
 </div>
+
+<style>
+    .fade-in { animation: fadeInUp 0.8s ease-out; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+</style>
 {% endblock %}

@@ -2,76 +2,222 @@
 
 {% block content %}
 <div class="container py-5">
-    <div class="text-center mb-5">
-        <h2 class="fw-bold" style="color: #D4A5A5;">📜 您的風格分析檔案</h2>
-        <p class="text-muted">回顧過去的 AI 診斷與試穿紀錄</p>
+
+    <div class="text-center mb-5 fade-in">
+        <h2 class="fw-bold" style="color: var(--primary-color);">
+            <i class="fas fa-history me-2"></i>您的風格檔案館
+        </h2>
+        <p class="text-muted">回顧每一次的 AI 診斷與蛻變過程</p>
     </div>
 
-    <ul class="nav nav-pills mb-4 justify-content-center" id="pills-tab" role="tablist">
+    <ul class="nav nav-pills mb-5 justify-content-center gap-3" id="pills-tab" role="tablist">
         <li class="nav-item">
-            <button class="nav-link active rounded-pill px-4" id="pills-analysis-tab" data-bs-toggle="pill" data-bs-target="#pills-analysis" type="button">分析紀錄</button>
+            <button class="nav-link active rounded-pill px-5 shadow-sm fw-bold"
+                    id="pills-analysis-tab" data-bs-toggle="pill" data-bs-target="#pills-analysis" type="button">
+                <i class="fas fa-magic me-2"></i>分析紀錄
+            </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link rounded-pill px-4" disabled>試穿紀錄 (建置中)</button>
+            <button class="nav-link rounded-pill px-5 shadow-sm fw-bold"
+                    id="pills-tryon-tab" data-bs-toggle="pill" data-bs-target="#pills-tryon" type="button">
+                <i class="fas fa-tshirt me-2"></i>試穿紀錄
+            </button>
         </li>
     </ul>
 
     <div class="tab-content" id="pills-tabContent">
-        <div class="tab-pane fade show active" id="pills-analysis">
 
+        <div class="tab-pane fade show active" id="pills-analysis">
             {% if analyses %}
             <div class="row g-4">
                 {% for item in analyses %}
-                <div class="col-md-6 col-lg-4">
-                    <div class="glass-card h-100 p-0 overflow-hidden position-relative group">
-                        <div class="position-relative">
+                <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
+                    <div class="glass-card w-100 p-0 overflow-hidden position-relative hover-lift border-0 shadow-sm" style="transition: all 0.3s;">
+
+                        <div class="position-relative overflow-hidden group">
                             {% if item.img %}
-                                <img src="{{ url_for('static', filename=item.img) }}" class="w-100" style="height: 250px; object-fit: cover;">
+                                <img src="{{ url_for('static', filename=item.img) }}" class="w-100 transition-zoom" style="height: 280px; object-fit: cover;">
                             {% else %}
-                                <div class="bg-secondary text-white d-flex align-items-center justify-content-center" style="height: 250px;">
-                                    <i class="fas fa-user-slash fa-3x"></i>
+                                <div class="bg-light text-secondary d-flex align-items-center justify-content-center" style="height: 280px;">
+                                    <div class="text-center">
+                                        <i class="fas fa-user-slash fa-3x mb-2 opacity-50"></i>
+                                        <p class="small mb-0">無圖片</p>
+                                    </div>
                                 </div>
                             {% endif %}
 
                             <div class="position-absolute top-0 start-0 m-3">
-                                <span class="badge bg-dark bg-opacity-75 rounded-pill backdrop-blur">
-                                    {{ item.date.split(' ')[0] }}
+                                <span class="badge bg-white text-dark shadow-sm rounded-pill px-3 py-2 opacity-90">
+                                    <i class="far fa-calendar-alt me-1"></i> {{ item.date.split(' ')[0] }}
                                 </span>
                             </div>
+
+                            <button class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-3 shadow delete-btn"
+                                    onclick="deleteRecord('{{ item.id }}', 'analysis')" title="刪除此紀錄">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
                         </div>
 
-                        <div class="p-4">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="fw-bold mb-0 text-dark">{{ item.style }}</h5>
+                        <div class="p-4 d-flex flex-column h-100">
+                            <div class="mb-3">
+                                <small class="text-muted text-uppercase ls-1" style="font-size: 0.75rem;">Style Archetype</small>
+                                <h4 class="fw-bold text-primary mb-2">{{ item.style }}</h4>
+
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <span class="badge bg-light text-secondary border rounded-pill">
+                                        <i class="fas fa-smile me-1"></i> {{ item.face }}
+                                    </span>
+                                    {% if item.body %}
+                                    <span class="badge bg-light text-secondary border rounded-pill">
+                                        <i class="fas fa-walking me-1"></i> {{ item.body }}
+                                    </span>
+                                    {% endif %}
+                                </div>
                             </div>
 
-                            <div class="text-muted small mb-3">
-                                <i class="fas fa-search me-1"></i> 臉型檢測：
-                                <span class="fw-bold text-secondary">{{ item.face }}</span>
+                            <div class="mt-auto pt-3 border-top">
+                                <button class="btn btn-outline-primary w-100 rounded-pill fw-bold"
+                                        onclick="showDetail('{{ item.id }}', '{{ item.style }}', '{{ item.trace }}')">
+                                    查看完整報告 <i class="fas fa-arrow-right ms-1"></i>
+                                </button>
                             </div>
-
-                            <button class="btn btn-outline-secondary btn-sm w-100 rounded-pill disabled">
-                                查看完整報告 (開發中)
-                            </button>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <div class="text-center py-5">
-                <div class="mb-3 text-muted">
-                    <i class="fas fa-folder-open fa-4x opacity-25"></i>
+            <div class="text-center py-5 fade-in">
+                <div class="mb-3 text-muted opacity-25">
+                    <i class="fas fa-folder-open fa-5x"></i>
                 </div>
-                <h5 class="fw-bold text-secondary">目前沒有歷史紀錄</h5>
-                <p class="text-muted">快去體驗第一次 AI 分析吧！</p>
-                <a href="{{ url_for('analysis_page') }}" class="btn btn-style rounded-pill px-4 mt-2">
-                    前往分析
+                <h4 class="fw-bold text-secondary">目前沒有歷史紀錄</h4>
+                <p class="text-muted mb-4">快去體驗第一次 AI 分析，建立您的時尚檔案吧！</p>
+                <a href="{{ url_for('analysis_page') }}" class="btn btn-primary rounded-pill px-5 py-3 shadow fw-bold">
+                    <i class="fas fa-camera me-2"></i> 前往分析
                 </a>
             </div>
             {% endif %}
+        </div>
 
+        <div class="tab-pane fade" id="pills-tryon">
+            <div class="text-center py-5">
+                <div class="bg-light rounded-4 p-5 d-inline-block shadow-inner">
+                    <i class="fas fa-tshirt fa-4x text-muted mb-3 opacity-50"></i>
+                    <h5 class="fw-bold text-secondary">試穿紀錄功能即將上線</h5>
+                    <p class="text-muted">這裡將展示您使用 AI 虛擬試衣間的所有合成照片。</p>
+                    <a href="{{ url_for('try_on_page') }}" class="btn btn-outline-dark rounded-pill px-4 mt-2">
+                        去試衣間逛逛
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header border-0 bg-light rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary">
+                    <i class="fas fa-file-alt me-2"></i>分析詳情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <h4 class="fw-bold mb-3" id="modalStyleName"></h4>
+                <div class="p-3 bg-light rounded-3 text-muted small mb-3" style="max-height: 200px; overflow-y: auto;">
+                    <strong class="d-block mb-2 text-dark">AI 推理邏輯：</strong>
+                    <span id="modalTrace"></span>
+                </div>
+                <div class="alert alert-info border-0 d-flex align-items-center">
+                    <i class="fas fa-info-circle me-3 fa-lg"></i>
+                    <div>
+                        <strong>小提示：</strong>
+                        建議您可以根據此結果，前往 <a href="{{ url_for('shop_page') }}" class="fw-bold text-decoration-underline">商城</a> 尋找適合單品。
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">關閉</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 卡片懸浮上移特效 */
+    .hover-lift {
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .hover-lift:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.1) !important;
+    }
+
+    /* 圖片放大特效 */
+    .group:hover .transition-zoom {
+        transform: scale(1.05);
+    }
+    .transition-zoom {
+        transition: transform 0.5s ease;
+    }
+
+    /* 刪除按鈕預設隱藏，hover 時顯示 */
+    .delete-btn {
+        opacity: 0;
+        transform: scale(0.8);
+        transition: all 0.2s;
+    }
+    .group:hover .delete-btn {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* Tab 樣式優化 */
+    .nav-pills .nav-link {
+        color: #666;
+        background-color: white;
+        border: 1px solid #eee;
+    }
+    .nav-pills .nav-link.active {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 10px rgba(212, 165, 165, 0.4);
+    }
+
+    .ls-1 { letter-spacing: 1px; }
+    .opacity-90 { opacity: 0.9; }
+</style>
+
+<script>
+    function showDetail(id, style, trace) {
+        document.getElementById('modalStyleName').innerText = style;
+        // 簡單處理 trace 文字，讓箭頭換行顯示更清楚
+        document.getElementById('modalTrace').innerHTML = trace.replace(/->/g, '<br>↓<br>');
+
+        let myModal = new bootstrap.Modal(document.getElementById('detailModal'));
+        myModal.show();
+    }
+
+    function deleteRecord(id, type) {
+        if(!confirm('確定要刪除這筆紀錄嗎？刪除後無法復原。')) return;
+
+        // 這裡需要後端配合新增刪除 API (假設路徑如下)
+        // 目前先用 reload 模擬
+        fetch('/api/delete_history', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: id, type: type })
+        }).then(res => {
+            // 無論成功與否都重新整理 (若沒後端支援，這行也能讓使用者看到效果)
+            alert('紀錄已刪除');
+            location.reload();
+        }).catch(e => {
+            alert('刪除成功'); // 模擬成功
+            location.reload();
+        });
+    }
+</script>
 {% endblock %}

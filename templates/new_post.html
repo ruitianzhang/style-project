@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        
+        <div class="mb-4 fade-in">
+            <a href="{{ url_for('community_page') }}" class="text-decoration-none text-muted small hover-primary">
+                <i class="fas fa-arrow-left me-1"></i> 返回社群
+            </a>
+        </div>
+
+        <div class="glass-card p-4 p-md-5 fade-in shadow-lg border-0">
+
+            <div class="text-center mb-5">
+                <div class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle mb-3" style="width: 60px; height: 60px;">
+                    <i class="fas fa-camera fa-2x"></i>
+                </div>
+                <h3 class="fw-bold text-dark">發佈穿搭動態</h3>
+                <p class="text-muted small">分享您的今日 OOTD，或是讓大家幫您做決定</p>
+            </div>
+
+            <form action="{{ url_for('new_post') }}" method="POST" enctype="multipart/form-data" id="postForm">
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark small">穿搭照片 <span class="text-danger">*</span></label>
+
+                    <div class="upload-area position-relative d-flex flex-column align-items-center justify-content-center text-center p-4 rounded-4 border-2 border-dashed transition-all"
+                         id="dropZone"
+                         onclick="document.getElementById('imgInput').click()">
+
+                        <div id="uploadPlaceholder" class="py-4">
+                            <i class="fas fa-cloud-upload-alt fa-3x mb-3 text-secondary opacity-50"></i>
+                            <h6 class="fw-bold text-secondary">點擊或拖曳照片至此</h6>
+                            <small class="text-muted opacity-75">支援 JPG, PNG, WEBP (Max 10MB)</small>
+                        </div>
+
+                        <div id="previewContainer" class="d-none position-absolute top-0 start-0 w-100 h-100 bg-light rounded-4 overflow-hidden group">
+                            <img id="preview" class="w-100 h-100" style="object-fit: cover;">
+
+                            <button type="button" class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-3 shadow"
+                                    onclick="removeImage(event)" title="移除照片">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <input type="file" name="image" id="imgInput" class="d-none" accept="image/*" onchange="previewImg(this)" required>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark small">心得 / 提問內容 <span class="text-danger">*</span></label>
+                    <textarea name="content" class="form-control bg-light border-0 rounded-4 px-3 py-3 shadow-inner"
+                              rows="4" placeholder="這套穿搭的靈感是... 或者詢問大家覺得適合什麼場合？"
+                              required style="resize: none;"></textarea>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-dark small">風格標籤 (Tags)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-0 rounded-start-pill ps-3 text-muted"><i class="fas fa-hashtag"></i></span>
+                        <input type="text" name="tags" id="tagsInput" class="form-control bg-light border-0 rounded-end-pill py-2" placeholder="例如：韓系, 約會, 顯瘦">
+                    </div>
+                    <div class="mt-2 d-flex gap-2 flex-wrap">
+                        <span class="badge bg-light text-secondary border cursor-pointer hover-tag" onclick="addTag('OOTD')">#OOTD</span>
+                        <span class="badge bg-light text-secondary border cursor-pointer hover-tag" onclick="addTag('約會穿搭')">#約會穿搭</span>
+                        <span class="badge bg-light text-secondary border cursor-pointer hover-tag" onclick="addTag('顯瘦')">#顯瘦</span>
+                        <span class="badge bg-light text-secondary border cursor-pointer hover-tag" onclick="addTag('韓系')">#韓系</span>
+                    </div>
+                </div>
+
+                <div class="bg-white border rounded-4 p-3 mb-5 shadow-sm">
+                    <div class="form-check form-switch d-flex align-items-center justify-content-between mb-3 px-3">
+                        <div>
+                            <label class="form-check-label fw-bold text-primary cursor-pointer" for="qaSwitch">
+                                <i class="fas fa-poll me-2"></i>發起「適合我嗎？」投票
+                            </label>
+                            <div class="small text-muted mt-1">讓社群幫你決定這套穿搭是否合適</div>
+                        </div>
+                        <input class="form-check-input ms-3" type="checkbox" name="is_qa" id="qaSwitch" style="width: 3em; height: 1.5em; cursor: pointer;">
+                    </div>
+
+                    <hr class="opacity-10 my-2">
+
+                    <div class="form-check form-switch d-flex align-items-center justify-content-between mt-3 px-3">
+                        <div>
+                            <label class="form-check-label text-secondary cursor-pointer" for="anonSwitch">
+                                <i class="fas fa-user-secret me-2"></i>開啟匿名模式
+                            </label>
+                        </div>
+                        <input class="form-check-input ms-3" type="checkbox" name="is_anonymous" id="anonSwitch" style="width: 3em; height: 1.5em; cursor: pointer;">
+                    </div>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" id="submitBtn" class="btn btn-primary btn-lg rounded-pill shadow fw-bold py-3 transition-transform">
+                        <i class="fas fa-paper-plane me-2"></i>發佈貼文
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 上傳區塊樣式 */
+    .upload-area {
+        background-color: #f8f9fa;
+        border-color: #dee2e6 !important;
+        cursor: pointer;
+    }
+    .upload-area:hover, .upload-area.dragover {
+        background-color: #fff5f5; /* 淡粉色背景 */
+        border-color: var(--primary-color) !important;
+        color: var(--primary-color);
+    }
+    .upload-area.dragover {
+        transform: scale(1.02);
+        box-shadow: 0 0 15px rgba(212, 165, 165, 0.3);
+    }
+
+    /* 輸入框內陰影 */
+    .shadow-inner { box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+
+    /* 標籤懸停 */
+    .hover-tag:hover {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+        border-color: var(--primary-color) !important;
+    }
+
+    .hover-primary:hover { color: var(--primary-color) !important; }
+
+    /* 按鈕動效 */
+    .transition-transform:hover { transform: translateY(-2px); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const imgInput = document.getElementById('imgInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const preview = document.getElementById('preview');
+
+    // 1. 點擊上傳
+    function previewImg(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.src = e.target.result;
+                previewContainer.classList.remove('d-none');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // 2. 移除圖片
+    function removeImage(e) {
+        e.stopPropagation(); // 防止觸發 dropZone 點擊
+        imgInput.value = ''; // 清空 input
+        preview.src = '';
+        previewContainer.classList.add('d-none');
+    }
+
+    // 3. 拖曳上傳 (Drag & Drop)
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+    });
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if(files.length > 0) {
+            imgInput.files = files; // 將拖曳檔案指派給 input
+            previewImg(imgInput);
+        }
+    }
+
+    // 4. 快速添加標籤
+    function addTag(tag) {
+        const input = document.getElementById('tagsInput');
+        let currentVal = input.value.trim();
+
+        // 避免重複添加
+        if(currentVal.includes(tag)) return;
+
+        if (currentVal) {
+            input.value = currentVal + ', ' + tag;
+        } else {
+            input.value = tag;
+        }
+    }
+
+    // 5. 表單提交動畫
+    document.getElementById('postForm').addEventListener('submit', function() {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>發佈中...';
+    });
+</script>
+{% endblock %}

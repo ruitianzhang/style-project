@@ -1,96 +1,367 @@
 {% extends "base.html" %}
+
 {% block content %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold" style="color: #D4A5A5;"><i class="far fa-calendar-alt me-2"></i>穿搭日曆</h3>
-        <button class="btn btn-style rounded-pill" data-bs-toggle="modal" data-bs-target="#eventModal">
-            <i class="fas fa-plus me-1"></i> 新增行程
+        <div>
+            <h3 class="fw-bold" style="color: var(--primary-color);">
+                <i class="far fa-calendar-alt me-2"></i>時尚穿搭日曆
+            </h3>
+            <p class="text-muted small mb-0">規劃您的 OOTD (Outfit of the Day)，讓每一天都自信登場。</p>
+        </div>
+        <button class="btn btn-primary rounded-pill px-4 shadow-sm" onclick="openAddModal()">
+            <i class="fas fa-plus me-1"></i> 新增計畫
         </button>
     </div>
 
-    <div class="row">
-        <div class="col-md-8">
-            <div class="glass-card p-4">
-                <div id="calendarGrid" class="row g-2">
-                    </div>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="glass-card p-4 h-100">
+                <div id="calendar"></div>
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="glass-card h-100">
-                <h5 class="fw-bold border-bottom pb-2 mb-3">📅 近期行程</h5>
-                <div id="eventList">
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 mb-4" style="background: linear-gradient(135deg, #fff 0%, #fff5f5 100%);">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-warning bg-opacity-25 text-warning rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 45px; height: 45px;">
+                            <i class="fas fa-lightbulb"></i>
+                        </div>
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">今日穿搭靈感</h6>
+                            <small class="text-muted">Based on Weather</small>
+                        </div>
                     </div>
+                    <p class="card-text small text-secondary">
+                        今日氣溫回暖，適合 <span class="fw-bold text-primary">薄針織衫</span> 搭配 <span class="fw-bold text-primary">牛仔寬褲</span>，輕鬆又不失風格。
+                    </p>
+                </div>
+            </div>
+
+            <div class="glass-card h-auto">
+                <h5 class="fw-bold border-bottom pb-3 mb-3" style="color: #666;">
+                    <i class="fas fa-clock me-2"></i>即將到來
+                </h5>
+                <div id="upcomingList" class="d-flex flex-column gap-3">
+                    <div class="text-center text-muted py-3">
+                        <span class="spinner-border spinner-border-sm"></span> 載入中...
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="eventModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">新增穿搭計畫</h5>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="modalTitle">新增穿搭計畫</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <input type="date" id="evtDate" class="form-control mb-3">
-                <input type="text" id="evtTitle" class="form-control mb-3" placeholder="事件名稱 (如: 客戶會議)">
-                <textarea id="evtDesc" class="form-control" placeholder="穿搭備註 (如: 藍色襯衫 + 卡其褲)"></textarea>
+            <div class="modal-body p-4">
+                <form id="eventForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">日期</label>
+                        <input type="date" id="evtDate" class="form-control bg-light border-0">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">行程主題</label>
+                        <input type="text" id="evtTitle" class="form-control bg-light border-0" placeholder="例如: 客戶會議、約會、野餐">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small d-flex justify-content-between align-items-center">
+                            穿搭計畫 / 備註
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill" onclick="askAIForOutfit()">
+                                <i class="fas fa-magic me-1"></i> AI 幫我想
+                            </button>
+                        </label>
+                        <textarea id="evtDesc" class="form-control bg-light border-0" rows="3" placeholder="點擊上方按鈕讓 AI 建議，或自行輸入..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">標籤顏色</label>
+                        <div class="d-flex gap-2">
+                            <input type="radio" class="btn-check" name="color" id="c1" value="#D4A5A5" checked>
+                            <label class="btn btn-outline-secondary rounded-circle p-2 border-0" for="c1" style="background-color: #D4A5A5; width: 30px; height: 30px;"></label>
+
+                            <input type="radio" class="btn-check" name="color" id="c2" value="#C5A065">
+                            <label class="btn btn-outline-secondary rounded-circle p-2 border-0" for="c2" style="background-color: #C5A065; width: 30px; height: 30px;"></label>
+
+                            <input type="radio" class="btn-check" name="color" id="c3" value="#4A6C6F">
+                            <label class="btn btn-outline-secondary rounded-circle p-2 border-0" for="c3" style="background-color: #4A6C6F; width: 30px; height: 30px;"></label>
+
+                            <input type="radio" class="btn-check" name="color" id="c4" value="#E07A5F">
+                            <label class="btn btn-outline-secondary rounded-circle p-2 border-0" for="c4" style="background-color: #E07A5F; width: 30px; height: 30px;"></label>
+                        </div>
+                    </div>
+                </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-primary" onclick="addEvent()">儲存</button>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4" onclick="saveEvent()">儲存計畫</button>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-const events = {{ events | safe }};
-
-function renderCalendar() {
-    let grid = document.getElementById('calendarGrid');
-    let list = document.getElementById('eventList');
-    let today = new Date();
-    
-    // 簡單生成當月日期 (1-30)
-    for(let i=1; i<=30; i++) {
-        let dateStr = `2026-06-${i.toString().padStart(2, '0')}`; // 模擬日期
-        let hasEvent = events.find(e => e.start === dateStr);
-        
-        grid.innerHTML += `
-            <div class="col-2 mb-2">
-                <div class="p-2 border rounded text-center ${hasEvent ? 'bg-warning bg-opacity-25 border-warning' : 'bg-white'}" style="height: 80px;">
-                    <small>${i}</small>
-                    ${hasEvent ? `<div class="badge bg-warning text-dark mt-1 text-truncate w-100">${hasEvent.title}</div>` : ''}
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-body p-4 text-center">
+                <div class="mb-3">
+                    <span id="detailDate" class="badge bg-light text-dark mb-2"></span>
+                    <h3 id="detailTitle" class="fw-bold text-dark"></h3>
+                </div>
+                <div class="p-3 bg-light rounded-3 text-start mb-4">
+                    <p id="detailDesc" class="mb-0 text-muted" style="white-space: pre-wrap;"></p>
+                </div>
+                <div class="d-flex justify-content-center gap-2">
+                    <button class="btn btn-outline-danger rounded-pill px-4" onclick="deleteEvent()">刪除</button>
+                    <button class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">關閉</button>
                 </div>
             </div>
-        `;
-    }
-
-    list.innerHTML = events.map(e => `
-        <div class="p-3 bg-white rounded shadow-sm mb-2 border-start border-4 border-warning">
-            <div class="d-flex justify-content-between">
-                <strong>${e.title}</strong>
-                <small class="text-muted">${e.start}</small>
-            </div>
-            <small class="text-muted">${e.description}</small>
         </div>
-    `).join('') || '<p class="text-muted text-center mt-5">尚無行程</p>';
+    </div>
+</div>
+
+<style>
+/* FullCalendar 自定義樣式 (莫蘭迪風格) */
+:root {
+    --fc-border-color: rgba(0,0,0,0.05);
+    --fc-button-text-color: #555;
+    --fc-button-bg-color: #fff;
+    --fc-button-border-color: #eee;
+    --fc-button-hover-bg-color: #f8f9fa;
+    --fc-button-hover-border-color: #ddd;
+    --fc-button-active-bg-color: var(--primary-color);
+    --fc-button-active-border-color: var(--primary-color);
+    --fc-today-bg-color: rgba(212, 165, 165, 0.1);
 }
 
-function addEvent() {
+#calendar {
+    font-family: 'Noto Sans TC', sans-serif;
+}
+
+.fc-toolbar-title {
+    font-size: 1.5rem !important;
+    font-weight: 700;
+    color: #444;
+}
+
+.fc-col-header-cell-cushion {
+    color: #888;
+    font-weight: 500;
+    padding-bottom: 10px !important;
+}
+
+.fc-daygrid-day-number {
+    color: #666;
+    font-weight: 500;
+    text-decoration: none !important;
+}
+
+.fc-event {
+    border: none !important;
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
+}
+.fc-event:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 天氣圖示樣式 */
+.weather-icon {
+    font-size: 0.8rem;
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    color: #aaa;
+}
+</style>
+
+<script>
+// 初始化變數
+let calendar;
+let currentEventId = null; // 用於刪除
+const events = {{ events | tojson | safe }} || []; // 接收後端數據
+
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+
+    // 初始化 FullCalendar
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,listWeek' // 月檢視 / 列表檢視
+        },
+        buttonText: {
+            today: '今天',
+            month: '月',
+            list: '列表'
+        },
+        locale: 'zh-tw',
+        events: events,
+        editable: true, // 允許拖曳
+        selectable: true, // 允許點選日期
+        dayMaxEvents: true, // 事件太多時顯示 +more
+
+        // 點選日期 -> 新增
+        dateClick: function(info) {
+            openAddModal(info.dateStr);
+        },
+
+        // 點選事件 -> 查看詳情
+        eventClick: function(info) {
+            showEventDetail(info.event);
+        },
+
+        // 渲染自定義內容 (例如天氣)
+        dayCellDidMount: function(info) {
+            // 模擬：為未來 7 天添加天氣圖示
+            let today = new Date();
+            let cellDate = info.date;
+            let diffTime = Math.abs(cellDate - today);
+            let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (cellDate >= today && diffDays <= 7) {
+                let icons = ['fa-sun text-warning', 'fa-cloud-sun text-info', 'fa-cloud text-secondary', 'fa-umbrella text-primary'];
+                let randIcon = icons[Math.floor(Math.random() * icons.length)];
+
+                let el = document.createElement('i');
+                el.className = `fas ${randIcon} weather-icon`;
+                info.el.querySelector('.fc-daygrid-day-top').prepend(el);
+            }
+        }
+    });
+
+    calendar.render();
+    updateUpcomingList();
+});
+
+// 開啟新增 Modal
+function openAddModal(dateStr = '') {
+    // 若未指定日期，預設今天
+    if (!dateStr) {
+        dateStr = new Date().toISOString().split('T')[0];
+    }
+    document.getElementById('evtDate').value = dateStr;
+    document.getElementById('evtTitle').value = '';
+    document.getElementById('evtDesc').value = '';
+
+    let myModal = new bootstrap.Modal(document.getElementById('eventModal'));
+    myModal.show();
+}
+
+// 儲存事件
+function saveEvent() {
     let date = document.getElementById('evtDate').value;
     let title = document.getElementById('evtTitle').value;
     let desc = document.getElementById('evtDesc').value;
-    
+    let color = document.querySelector('input[name="color"]:checked').value;
+
+    if (!title || !date) { alert('請填寫日期與主題'); return; }
+
+    // 呼叫後端 API
     fetch('/api/calendar/add', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ date, title, desc })
-    }).then(() => location.reload());
+        body: JSON.stringify({ date, title, desc, color })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'success') {
+            // 重新整理頁面或動態添加 (這裡簡單做 reload)
+            location.reload();
+        } else {
+            alert('儲存失敗');
+        }
+    });
 }
 
-renderCalendar();
+// 顯示詳情
+function showEventDetail(event) {
+    currentEventId = event.id; // 假設後端有回傳 id，若無可透過 extendedProps 處理
+    document.getElementById('detailDate').innerText = event.startStr;
+    document.getElementById('detailTitle').innerText = event.title;
+    document.getElementById('detailDesc').innerText = event.extendedProps.description || "無備註";
+
+    let myModal = new bootstrap.Modal(document.getElementById('detailModal'));
+    myModal.show();
+}
+
+// 刪除事件
+function deleteEvent() {
+    if(!currentEventId) return;
+    if(!confirm('確定刪除此行程？')) return;
+
+    // 這裡需要後端支援 delete API (假設您之後會補上)
+    // 目前先簡單從前端移除
+    let event = calendar.getEventById(currentEventId);
+    if(event) event.remove();
+
+    // 關閉 Modal
+    bootstrap.Modal.getInstance(document.getElementById('detailModal')).hide();
+}
+
+// 更新側邊欄「即將到來」列表
+function updateUpcomingList() {
+    let listEl = document.getElementById('upcomingList');
+    let today = new Date();
+    // 過濾出未來的事件
+    let futureEvents = events.filter(e => new Date(e.start) >= today).sort((a,b) => new Date(a.start) - new Date(b.start)).slice(0, 5);
+
+    if (futureEvents.length === 0) {
+        listEl.innerHTML = '<p class="text-muted text-center py-3">近期無行程</p>';
+        return;
+    }
+
+    listEl.innerHTML = futureEvents.map(e => `
+        <div class="d-flex align-items-center p-2 rounded hover-bg-light cursor-pointer" onclick="alert('${e.title}')">
+            <div class="rounded-3 text-center me-3 text-white shadow-sm" style="width: 50px; background-color: ${e.color || '#D4A5A5'};">
+                <small class="d-block pt-1" style="font-size: 0.7rem;">${new Date(e.start).toLocaleString('default', {month:'short'})}</small>
+                <strong class="d-block pb-1" style="font-size: 1.1rem; line-height:1;">${new Date(e.start).getDate()}</strong>
+            </div>
+            <div class="flex-grow-1 overflow-hidden">
+                <h6 class="mb-0 text-truncate text-dark fw-bold">${e.title}</h6>
+                <small class="text-muted text-truncate d-block">${e.description || '無備註'}</small>
+            </div>
+        </div>
+    `).join('');
+}
+
+// AI 穿搭建議功能
+function askAIForOutfit() {
+    let title = document.getElementById('evtTitle').value;
+    let descBox = document.getElementById('evtDesc');
+
+    if(!title) { alert("請先輸入行程主題 (例如: 約會、面試)，AI 才能給建議！"); return; }
+
+    descBox.value = "AI 正在思考穿搭中...";
+
+    // 模擬 AI 延遲
+    setTimeout(() => {
+        let suggestions = [
+            "建議搭配：淺色亞麻西裝外套 + 白色T恤 + 樂福鞋。適合半正式場合。",
+            "建議搭配：碎花連身裙 + 針織罩衫 + 瑪莉珍鞋。展現溫柔氣質。",
+            "建議搭配：Oversize 大學T + 單車褲 + 老爹鞋。舒適又時髦。",
+            "建議搭配：絲質襯衫 + 高腰寬褲 + 金屬飾品。俐落職場風。"
+        ];
+        // 隨機選一個 (實際應接後端 API)
+        let randomSug = suggestions[Math.floor(Math.random() * suggestions.length)];
+        descBox.value = randomSug;
+    }, 1000);
+}
 </script>
 {% endblock %}

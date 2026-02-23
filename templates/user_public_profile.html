@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    :root {
+        --morandi-pink: #D4A5A5; /* 賣場與社群主色 */
+        --morandi-bg: #FDFBFA;  /* 柔和背景色 */
+        --glass-bg: rgba(255, 255, 255, 0.75);
+    }
+
+    body { background-color: var(--morandi-bg); }
+
+    /* 1. 頂部來回切換導航 (與 community.html 完全一致) */
+    .nav-capsule {
+        background: white;
+        border-radius: 50px;
+        padding: 5px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        display: inline-flex;
+        border: 1px solid rgba(212, 165, 165, 0.1);
+    }
+
+    .nav-capsule .nav-link {
+        border-radius: 50px;
+        padding: 8px 25px;
+        color: #888;
+        font-weight: 500;
+        transition: 0.3s;
+        border: none;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* 在個人主頁時，我的主頁標籤設為 active */
+    .nav-capsule .nav-link.active {
+        background-color: var(--morandi-pink);
+        color: white !important;
+    }
+
+    /* 2. 玻璃質感檔案資訊卡 */
+    .profile-glass-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 35px;
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.03);
+    }
+
+    /* 3. 按鈕與標籤風格 */
+    .btn-pink {
+        background-color: var(--morandi-pink);
+        color: white !important;
+        border-radius: 50px;
+        border: none;
+        padding: 10px 30px;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .btn-pink:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+    }
+
+    .style-badge {
+        background: white;
+        border: 1px solid #eee;
+        color: #888;
+        border-radius: 50px;
+        padding: 4px 15px;
+        font-size: 0.8rem;
+    }
+
+    /* 4. 展示牆網格與懸浮效果 */
+    .gallery-item {
+        border-radius: 20px;
+        overflow: hidden;
+        position: relative;
+        aspect-ratio: 1 / 1;
+        cursor: pointer;
+    }
+    .gallery-overlay {
+        background: rgba(212, 165, 165, 0.7);
+        backdrop-filter: blur(4px);
+        opacity: 0;
+        transition: 0.3s;
+    }
+    .gallery-item:hover .gallery-overlay {
+        opacity: 1;
+    }
+
+    .text-pink { color: var(--morandi-pink) !important; }
+</style>
+
+<div class="container py-5">
+
+    <div class="text-center mb-5 fade-in">
+        <div class="nav-capsule shadow-sm">
+            <a href="{{ url_for('community_page') }}" class="nav-link">
+                <i class="fas fa-globe-asia"></i> 全球社群動態
+            </a>
+            <a href="{{ url_for('user_public_profile', user_id=session.get('user_id')) }}" class="nav-link active">
+                <i class="fas fa-user-circle"></i> 我的個人主頁
+            </a>
+        </div>
+    </div>
+
+    <div class="profile-glass-card p-4 p-md-5 mb-5 fade-in-up">
+        <div class="row align-items-center">
+            <div class="col-md-3 text-center mb-4 mb-md-0">
+                <div class="position-relative d-inline-block">
+                    <div class="rounded-circle p-1 border border-3 border-white shadow-sm" style="width: 150px; height: 150px; overflow: hidden; background: white;">
+                        <img src="{{ profile_user.avatar if profile_user.avatar else 'https://ui-avatars.com/api/?name=' + profile_user.name + '&background=D4A5A5&color=fff' }}"
+                             class="w-100 h-100 rounded-circle object-fit-cover">
+                    </div>
+                    {% if profile_user.is_vip %}
+                    <div class="position-absolute bottom-0 end-0 bg-warning text-white rounded-circle shadow-sm d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; border: 3px solid white;">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-md-9 px-md-4">
+                <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+                    <h2 class="fw-bold mb-0">{{ profile_user.name }}</h2>
+                    {% if profile_user.role == 'expert' %}
+                        <span class="badge rounded-pill bg-info px-3">認證搭配師</span>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-4 mb-4">
+                    <div class="text-center">
+                        <span class="d-block fw-bold fs-5">{{ stats.post_count }}</span>
+                        <small class="text-muted">貼文</small>
+                    </div>
+                    <div class="text-center border-start ps-4">
+                        <span class="d-block fw-bold fs-5">{{ stats.received_likes }}</span>
+                        <small class="text-muted">收穫心動</small>
+                    </div>
+                    <div class="text-center border-start ps-4">
+                        <span class="d-block fw-bold fs-5">{{ stats.follower_count }}</span>
+                        <small class="text-muted">粉絲</small>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <p class="text-muted mb-2 small">{{ profile_user.bio or "這個人很懶，還沒寫下介紹..." }}</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if profile_user.style_tags %}
+                            {% for tag in profile_user.style_tags %}
+                                <span class="style-badge"># {{ tag }}</span>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    {% if session.get('user_id') == profile_user.id %}
+                        <a href="{{ url_for('profile_page') }}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold small">
+                            <i class="fas fa-edit me-2"></i>編輯檔案
+                        </a>
+                    {% else %}
+                        <button id="followBtn" class="btn btn-pink px-5 shadow-sm" onclick="toggleFollow({{ profile_user.id }})">
+                            <i class="fas fa-plus me-2"></i>追蹤
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center mb-4 px-2 fade-in">
+        <h4 class="fw-bold mb-0 border-start border-4 border-pink ps-3">個人展示牆</h4>
+    </div>
+
+    {% if posts %}
+    <div class="row g-3 fade-in">
+        {% for post in posts %}
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="gallery-item shadow-sm">
+                <img src="{{ post.image_path }}" class="w-100 h-100 object-fit-cover">
+
+                <div class="gallery-overlay position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center text-white">
+                    <div class="mb-2"><i class="fas fa-heart me-2"></i>{{ post.likes_count }}</div>
+
+                    {% if session.get('user_id') == profile_user.id %}
+                    <button class="btn btn-sm btn-light rounded-pill px-3 py-1 fw-bold text-danger"
+                            style="font-size: 0.7rem;" onclick="deleteMyPost(event, {{ post.id }})">
+                        <i class="fas fa-trash"></i> 刪除
+                    </button>
+                    {% endif %}
+
+                    <a href="{{ url_for('community_page') }}" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5 bg-white rounded-5 border border-dashed border-2">
+        <img src="https://cdn-icons-png.flaticon.com/512/4076/4076432.png" width="80" class="opacity-25 mb-3">
+        <p class="text-muted">目前還沒有發佈穿搭喔！</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// 刪除邏輯
+function deleteMyPost(event, postId) {
+    event.stopPropagation();
+    event.preventDefault();
+    if(!confirm('確定要刪除這篇珍貴的穿搭嗎？')) return;
+
+    fetch('/api/post/delete/' + postId, { method: 'POST' })
+    .then(res => res.ok ? location.reload() : alert('刪除失敗'));
+}
+
+// 追蹤邏輯
+function toggleFollow(userId) {
+    const btn = document.getElementById('followBtn');
+    fetch('/api/follow_user/' + userId, { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        if(data.status === 'success') {
+            if (data.action === 'followed') {
+                btn.classList.replace('btn-pink', 'btn-secondary');
+                btn.innerHTML = '<i class="fas fa-check me-2"></i>已追蹤';
+            } else {
+                btn.classList.replace('btn-secondary', 'btn-pink');
+                btn.innerHTML = '<i class="fas fa-plus me-2"></i>追蹤';
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
