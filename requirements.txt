@@ -1,12 +1,30 @@
+# --- 核心框架 ---
 Flask
 gunicorn
-opencv-python-headless
+werkzeug
+
+# --- AI 與 影像處理 (需嚴格固定版本以防衝突) ---
 mediapipe==0.10.9
 protobuf==3.20.3
+opencv-python-headless
 numpy
+
+# --- Google Gemini AI (需搭配特定 grpc 版本以相容舊版 protobuf) ---
+google-generativeai
+grpcio==1.50.0
+grpcio-status==1.50.0
+
+# --- 人臉分析與模型執行 ---
+insightface
+onnxruntime  # insightface 運行必備
+
+# --- 功能性套件 ---
 requests
 beautifulsoup4
 fpdf
-gradio_client
+authlib      # web.py 中用於 OAuth 登入
+python-uuid  # 雖然 uuid 是內建，但有些環境建議標註
+
+# --- 數據處理與繪圖 ---
 matplotlib
 Pillow
