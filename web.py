@@ -110,10 +110,28 @@ except Exception as e:
     print(f">> ⚠️ Gemini 初始化失敗: {e}")
 
 # ---  InsightFace (換臉引擎) ---
-print(">> 正在初始化 AI 換臉引擎... (首次運行需下載模型)")
+print(">> 正在初始化 AI 換臉引擎...")
 
-# 設定運算裝置：0 為 GPU (需 CUDA), -1 為 CPU
-INFERENCE_DEVICE_ID = 0
+# 1. 先定義下載小工具 (記得要在檔案最上方 import requests)
+def download_from_hf(url, dest):
+    print(f">> 📥 偵測到模型遺失，正在從 Hugging Face 下載：{dest}")
+    try:
+        import requests
+        response = requests.get(url, stream=True, timeout=60)
+        response.raise_for_status()
+        with open(dest, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print(">> ✨ 模型下載成功！")
+        return True
+    except Exception as err:
+        print(f">> ❌ 下載失敗：{err}")
+        return False
+
+# 設定運算裝置與路徑
+INFERENCE_DEVICE_ID = 0 #
+model_path = 'inswapper_128.onnx' #
+hf_url = "https://huggingface.co/ezioruan/inswapper_128.onnx/resolve/main/inswapper_128.onnx"
 
 face_app = None
 swapper = None
@@ -124,16 +142,18 @@ try:
     face_app.prepare(ctx_id=INFERENCE_DEVICE_ID, det_size=(640, 640))
 
     # (B) 換臉模型 (Face Swap)
-    model_path = 'inswapper_128.onnx'
+    # 這裡改成手動檢查與下載
     if not os.path.exists(model_path):
-        print(f"⚠️ 警告: 找不到 {model_path}，將嘗試自動下載...")
+        if not download_from_hf(hf_url, model_path):
+            raise FileNotFoundError("無法自動下載模型，請手動放置檔案。")
 
-    swapper = insightface.model_zoo.get_model(model_path, download=True, download_zip=True)
-    print(">> ✅ InsightFace 換臉模型載入成功！")
+    # 注意：這裡將 download 改為 False，因為我們已經手動下載好了
+    swapper = insightface.model_zoo.get_model(model_path, download=False)
+    print(">> ✅ InsightFace 換臉模型載入成功！") #
 
 except Exception as e:
-    print(f">> ❌ InsightFace 初始化失敗: {e}")
-    print(">> 提示: 若無 NVIDIA 顯卡，請將 INFERENCE_DEVICE_ID 改為 -1")
+    print(f">> ❌ InsightFace 初始化失敗: {e}") #
+    print(">> 提示: 若無 NVIDIA 顯卡，請將 INFERENCE_DEVICE_ID 改為 -1") #
 
 # ---  MediaPipe (臉部網格與骨架) ---
 mp_face_mesh = mp.solutions.face_mesh
