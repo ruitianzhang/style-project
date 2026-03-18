@@ -11,8 +11,8 @@ numpy
 
 # --- Google Gemini AI ---
 google-generativeai
-grpcio==1.50.0
-grpcio-status==1.50.0
+grpcio
+grpcio-status
 
 # --- 人臉分析與模型執行 ---
 insightface
