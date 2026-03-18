@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block content %}
 <style>
     /* =========================================
@@ -146,7 +145,7 @@
                         <canvas id="faceCanvas" class="d-none"></canvas>
                     </div>
 
-                    <div class="d-flex justify-content-center gap-3">
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
                         <button class="btn btn-outline-secondary rounded-pill px-4" onclick="document.getElementById('faceInput').click()" id="btnUpload">
                             <i class="fas fa-upload me-2"></i>上傳
                         </button>
@@ -160,9 +159,19 @@
                             <i class="fas fa-camera me-2"></i><span id="captureBtnText">拍攝</span>
                         </button>
 
+                        <button id="btnUploadSecondary" class="btn btn-outline-secondary rounded-pill px-4 d-none" onclick="document.getElementById('faceInput').click()">
+                            <i class="fas fa-upload me-2"></i>上傳照片
+                        </button>
+
                         <button id="btnFaceConfirm" class="btn btn-primary rounded-pill px-5 d-none" onclick="confirmAndAnalyzeFace()">
                             開始分析 <i class="fas fa-magic ms-2"></i>
                         </button>
+                    </div>
+
+                    <div class="alert shadow-sm text-muted small mt-3 mx-auto px-3 py-2 text-center"
+                         style="max-width: 95%; border-radius: 12px; background-color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.8); backdrop-filter: blur(5px);">
+                        <i class="fas fa-info-circle me-1" style="color: var(--primary-pink);"></i>
+                        為了獲得最準確的分析，請<b>脫下帽子/撥開瀏海</b>，並<b>保持視線平視鏡頭</b>喔！
                     </div>
 
                     <div class="text-center mt-4" style="min-height: 70px;">
@@ -177,37 +186,62 @@
                 </div>
 
                 <div class="col-md-6 ps-md-4">
-                    <div id="faceLoading" class="text-center d-none my-5 pt-5 fade-in">
+                    <div id="faceLoading" class="text-center d-none mt-5 pt-5 fade-in">
                         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
                         <h5 class="mt-3 fw-bold text-muted">AI 正在計算五官比例...</h5>
                         <p class="text-muted small">FaceMesh + SkinTone Analysis</p>
                     </div>
 
-                    <div id="faceResult" class="d-none fade-in h-100 d-flex flex-column justify-content-center">
-                        <div class="text-center mb-4">
-                            <h5 class="text-muted small text-uppercase ls-1">Analysis Result</h5>
-                            <h2 class="fw-bold text-primary display-6" id="resFaceShape">--</h2>
-                            <div class="mt-2">
-                                <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="resSkinSeason">膚色檢測中...</span>
+                    <div id="faceResult" class="d-none fade-in pt-1">
+                        <div class="text-center mb-4 position-relative">
+                            <h5 class="text-muted small text-uppercase ls-1">
+                                Analysis Result
+                                <button class="btn btn-sm btn-link text-primary p-0 ms-2 transition-icon" onclick="toggleEditFace()" title="手動微調"><i class="fas fa-edit"></i></button>
+                            </h5>
+
+                            <div id="faceDisplayMode">
+                                <h2 class="fw-bold text-primary display-6 mb-2" id="resFaceShape">--</h2>
+                                <div class="mt-2">
+                                    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill" id="resSkinSeason">膚色檢測中...</span>
+                                </div>
+                            </div>
+
+                            <div id="faceEditMode" class="d-none mt-2 fade-in">
+                                <select id="editFaceShape" class="form-select form-select-sm mx-auto mb-2 text-center" style="max-width: 200px; border-color: var(--primary-pink);">
+                                    <option value="方形臉">方形臉</option>
+                                    <option value="圓形臉">圓形臉</option>
+                                    <option value="鵝蛋臉">鵝蛋臉</option>
+                                    <option value="長形臉">長形臉</option>
+                                    <option value="心形臉">心形臉</option>
+                                    <option value="菱形臉">菱形臉</option>
+                                    <option value="梨形臉">梨形臉</option>
+                                </select>
+                                <select id="editSkinSeason" class="form-select form-select-sm mx-auto mb-2 text-center" style="max-width: 200px; border-color: var(--primary-pink);">
+                                    <option value="Spring">🌸 春季型 (Spring)</option>
+                                    <option value="Summer">🌻 夏季型 (Summer)</option>
+                                    <option value="Autumn">🍁 秋季型 (Autumn)</option>
+                                    <option value="Winter">❄️ 冬季型 (Winter)</option>
+                                </select>
+                                <button class="btn btn-sm btn-primary rounded-pill px-4 mt-2 shadow-sm" onclick="saveFaceEdit()">儲存變更</button>
                             </div>
                         </div>
 
                         <div class="card border-0 shadow-sm bg-light rounded-4 mb-4">
                             <div class="card-body p-4">
-                                <div class="row g-3">
-                                    <div class="col-6"><small class="text-muted d-block">眼型</small><strong id="resEyes" class="text-dark fs-6">--</strong></div>
-                                    <div class="col-6"><small class="text-muted d-block">鼻型</small><strong id="resNose" class="text-dark fs-6">--</strong></div>
-                                    <div class="col-6"><small class="text-muted d-block">眉型</small><strong id="resBrows" class="text-dark fs-6">--</strong></div>
-                                    <div class="col-6"><small class="text-muted d-block">唇形</small><strong id="resLips" class="text-dark fs-6">--</strong></div>
+                                <div class="row g-4 text-center">
+                                    <div class="col-6"><small class="text-muted d-block mb-1">眼型</small><strong id="resEyes" class="text-dark fs-5">--</strong></div>
+                                    <div class="col-6"><small class="text-muted d-block mb-1">鼻型</small><strong id="resNose" class="text-dark fs-5">--</strong></div>
+                                    <div class="col-6"><small class="text-muted d-block mb-1">眉型</small><strong id="resBrows" class="text-dark fs-5">--</strong></div>
+                                    <div class="col-6"><small class="text-muted d-block mb-1">唇形</small><strong id="resLips" class="text-dark fs-5">--</strong></div>
                                 </div>
-                                <div class="mt-3 pt-3 border-top">
-                                    <small class="text-muted d-block">膚色冷暖調</small>
-                                    <strong id="resUndertone" class="text-primary fs-6">--</strong>
+                                <div class="mt-4 pt-4 border-top text-center">
+                                    <small class="text-muted d-block mb-1">膚色冷暖調</small>
+                                    <strong id="resUndertone" class="text-primary fs-5">--</strong>
                                 </div>
                             </div>
                         </div>
 
-                        <button class="btn btn-primary w-100 rounded-pill py-3 shadow-sm" onclick="goToStep2()">
+                        <button class="btn btn-primary w-100 rounded-pill py-3 shadow-sm mt-3" onclick="goToStep2()">
                             下一步：體態分析 <i class="fas fa-arrow-down ms-2"></i>
                         </button>
                     </div>
@@ -306,23 +340,27 @@
                 </div>
             </div>
 
-            <div class="card border-0 bg-light rounded-4 shadow-sm mb-5">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3"
-                         style="cursor: pointer;"
-                         data-bs-toggle="collapse"
-                         data-bs-target="#collapseStyleAdvice"
-                         aria-expanded="true"
-                         aria-controls="collapseStyleAdvice">
+            <div class="row justify-content-center mb-4">
+                <div class="col-md-9">
+                    <div class="card border-0 bg-light rounded-4 shadow-sm">
+                        <div class="card-body p-3 px-4">
+                            <div class="d-flex justify-content-between align-items-center collapsed"
+                                 style="cursor: pointer;"
+                                 data-bs-toggle="collapse"
+                                 data-bs-target="#collapseStyleAdvice"
+                                 aria-expanded="false"
+                                 aria-controls="collapseStyleAdvice">
 
-                        <h5 class="fw-bold text-primary mb-0">
-                            <i class="fas fa-quote-left me-2"></i>顧問總評
-                        </h5>
-                        <i class="fas fa-chevron-down text-primary transition-icon"></i>
-                    </div>
+                                <h6 class="fw-bold text-primary mb-0">
+                                    <i class="fas fa-quote-left me-2"></i>顧問總評
+                                </h6>
+                                <i class="fas fa-chevron-down text-primary transition-icon"></i>
+                            </div>
 
-                    <div class="collapse show" id="collapseStyleAdvice">
-                        <div class="text-dark lh-lg" id="styleAdvice" style="white-space: pre-line;"></div>
+                            <div class="collapse" id="collapseStyleAdvice">
+                                <div class="text-dark lh-base small pt-3" id="styleAdvice" style="white-space: pre-line;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -374,10 +412,57 @@
 let analysisData = { face: {}, body: {}, sideFace: null, skin: null };
 let activeStream = null;
 let originalFaceUrl = "";
-let sideFaceUrl = ""; // 用於存側臉照片
+let sideFaceUrl = "";
 let analyzedFaceUrl = "";
+let analyzedSideFaceUrl = ""; // 💡 增加這個變數來儲存側臉 2D 圖
 let currentAspectRatio = 1.0;
 let captureMode = 'front';
+
+// 🔴 1. 負責重置分析狀態
+function resetFaceState() {
+    analyzedFaceUrl = "";
+    analyzedSideFaceUrl = ""; // 💡 重置時也要清空側臉圖
+    document.getElementById('viewToggleBar').classList.add('d-none');
+    document.getElementById('faceResult').classList.add('d-none');
+    const btnConfirm = document.getElementById('btnFaceConfirm');
+    btnConfirm.classList.remove('d-none');
+    btnConfirm.disabled = false;
+    btnConfirm.innerHTML = '開始分析 <i class="fas fa-magic ms-2"></i>';
+}
+
+// 🔴 2. 負責切換「顯示」與「編輯」介面
+function toggleEditFace() {
+    document.getElementById('faceDisplayMode').classList.toggle('d-none');
+    document.getElementById('faceEditMode').classList.toggle('d-none');
+
+    // 展開時，自動填入目前畫面上顯示的臉型
+    let currentShape = document.getElementById('resFaceShape').innerText;
+    if(currentShape && currentShape !== '--') {
+        document.getElementById('editFaceShape').value = currentShape;
+    }
+}
+
+// 🔴 3. 負責儲存使用者的微調數據
+function saveFaceEdit() {
+    let newShape = document.getElementById('editFaceShape').value;
+    let seasonSelect = document.getElementById('editSkinSeason');
+    let newSeasonVal = seasonSelect.value;
+    let newSeasonText = seasonSelect.options[seasonSelect.selectedIndex].text;
+
+    // 更新畫面顯示
+    document.getElementById('resFaceShape').innerText = newShape;
+    document.getElementById('resSkinSeason').innerText = newSeasonText;
+    document.getElementById('resSkinSeason').className = "badge bg-primary text-white border px-3 py-2 rounded-pill";
+
+    // 更新底層資料 (確保傳給後端的資料是使用者修改過的)
+    if(!analysisData.face) analysisData.face = {};
+    analysisData.face.shape = newShape;
+    analysisData.skin = newSeasonVal;
+
+    // 切換回顯示模式
+    toggleEditFace();
+}
+
 
 // 1. 流程控制
 function updateProgress(step) {
@@ -400,7 +485,7 @@ function skipBodyAnalysis() {
     submitFullAnalysis(true);
 }
 
-// 2. 視圖與拍攝切換
+// 2. 視圖與拍攝切換 (🚀 完美支援側臉 2D/3D 切換)
 function switchCaptureMode(mode) {
     captureMode = mode;
     const title = document.getElementById('scanTitle');
@@ -414,43 +499,61 @@ function switchCaptureMode(mode) {
         document.getElementById('btnFaceCapture').classList.add('d-none');
     }
 
+    const isAnalyzed = !!analyzedFaceUrl;
+
+    // 記住目前選擇的視圖，若無則預設為 '2d'
+    let currentView = '2d';
+    let activeBtn = document.querySelector('.view-toggle .btn-toggle.active');
+    if (activeBtn) {
+        if (activeBtn.innerText === '原圖') currentView = 'original';
+        else if (activeBtn.innerText === '3D') currentView = '3d';
+    }
+
     if(mode === 'front') {
         title.innerText = "準備掃描正臉";
         btnText.innerText = "拍攝正臉";
 
-        if (analysisData.face && analysisData.face.landmarks_3d_grouped) {
+        if (isAnalyzed) {
             document.getElementById('facePlaceholder').classList.add('d-none');
             document.getElementById('viewToggleBar').classList.remove('d-none');
-            toggleFaceView('3d');
+            toggleFaceView(currentView); // 保持使用者選擇的視圖
+            document.getElementById('btnFaceConfirm').classList.add('d-none');
         } else if (originalFaceUrl) {
             document.getElementById('facePreview').src = originalFaceUrl;
             document.getElementById('facePreviewContainer').classList.remove('d-none');
             document.getElementById('facePlaceholder').classList.add('d-none');
+            document.getElementById('viewToggleBar').classList.add('d-none');
             document.getElementById('btnFaceConfirm').classList.remove('d-none');
         } else {
             document.getElementById('facePlaceholder').classList.remove('d-none');
             document.getElementById('facePreviewContainer').classList.add('d-none');
+            document.getElementById('viewToggleBar').classList.add('d-none');
         }
     } else {
         title.innerText = "準備掃描側臉";
         btnText.innerText = "拍攝側臉";
 
-        document.getElementById('viewToggleBar').classList.add('d-none');
-        document.getElementById('face3dContainer').classList.add('d-none');
-        document.getElementById('faceCanvas').classList.add('d-none');
-
-        if (sideFaceUrl) {
+        // 💡 側臉分析完畢後，確保切換列顯示，並自動載入對應視圖
+        if (isAnalyzed) {
+            document.getElementById('facePlaceholder').classList.add('d-none');
+            document.getElementById('viewToggleBar').classList.remove('d-none');
+            toggleFaceView(currentView);
+            document.getElementById('btnFaceConfirm').classList.add('d-none');
+        } else if (sideFaceUrl) {
             document.getElementById('facePreview').src = sideFaceUrl;
             document.getElementById('facePreviewContainer').classList.remove('d-none');
             document.getElementById('facePlaceholder').classList.add('d-none');
+            document.getElementById('viewToggleBar').classList.add('d-none');
+            document.getElementById('btnFaceConfirm').classList.remove('d-none');
         } else {
             document.getElementById('facePreviewContainer').classList.add('d-none');
             document.getElementById('facePlaceholder').classList.remove('d-none');
+            document.getElementById('viewToggleBar').classList.add('d-none');
         }
-        document.getElementById('btnFaceConfirm').classList.add('d-none');
     }
 }
 
+// 🔴 原圖/2D/3D 切換邏輯 (🚀 支援側臉原圖防呆顯示與 3D 自動旋轉)
 function toggleFaceView(viewType) {
     document.getElementById('facePreviewContainer').classList.add('d-none');
     document.getElementById('face3dContainer').classList.add('d-none');
@@ -462,33 +565,77 @@ function toggleFaceView(viewType) {
     const previewImg = document.getElementById('facePreview');
 
     if (viewType === 'original') {
-        if(originalFaceUrl) {
-            document.getElementById('facePreview').src = originalFaceUrl;
-            document.getElementById('facePreviewContainer').classList.remove('d-none');
-            document.querySelector('.view-toggle button:nth-child(1)').classList.add('active');
+        if (captureMode === 'front' && originalFaceUrl) {
+            previewImg.src = originalFaceUrl;
+        } else if (captureMode === 'side' && sideFaceUrl) {
+            previewImg.src = sideFaceUrl;
         }
+        document.getElementById('facePreviewContainer').classList.remove('d-none');
+        document.querySelector('.view-toggle button:nth-child(1)').classList.add('active');
+
     } else if (viewType === '2d') {
-        if(analyzedFaceUrl) {
-            document.getElementById('facePreview').src = analyzedFaceUrl;
+        // 💡 根據目前所在的分頁 (正臉/側臉)，決定顯示哪一張 2D 掃描圖！
+        if (captureMode === 'front' && analyzedFaceUrl) {
+            previewImg.src = analyzedFaceUrl;
+            document.getElementById('facePreviewContainer').classList.remove('d-none');
+            document.querySelector('.view-toggle button:nth-child(2)').classList.add('active');
+        } else if (captureMode === 'side' && analyzedSideFaceUrl) {
+            previewImg.src = analyzedSideFaceUrl;
             document.getElementById('facePreviewContainer').classList.remove('d-none');
             document.querySelector('.view-toggle button:nth-child(2)').classList.add('active');
         } else {
-            previewImg.src = originalFaceUrl;
+            // 如果還沒有分析圖，退回顯示原圖
+            previewImg.src = (captureMode === 'front') ? originalFaceUrl : sideFaceUrl;
             document.getElementById('facePreviewContainer').classList.remove('d-none');
         }
+
     } else if (viewType === '3d') {
         document.getElementById('face3dContainer').classList.remove('d-none');
         Plotly.Plots.resize('face3dContainer');
         document.querySelector('.view-toggle button:nth-child(3)').classList.add('active');
+
+        // 3D 鏡頭智慧旋轉
+        if (captureMode === 'side') {
+            Plotly.relayout('face3dContainer', { 'scene.camera.eye': { x: 1.5, y: 0, z: 0 } });
+        } else {
+            Plotly.relayout('face3dContainer', { 'scene.camera.eye': { x: 0, y: 0, z: 1.5 } });
+        }
     }
 }
 
-function startFaceCamera() {
+async function startFaceCamera() {
     const video = document.getElementById('faceVideo');
-    if (!navigator.mediaDevices) return alert("不支援相機");
-    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("無法啟動相機！\n請確認您的網址是 http://127.0.0.1:5000 或有 https 加密。");
+        return;
+    }
+
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        console.log("🔍 程式碼偵測到的視訊設備清單:", videoDevices);
+
+        if (videoDevices.length === 0) {
+            alert("程式碼回報：在這台電腦上完全找不到任何 'videoinput' (視訊鏡頭) 設備。");
+            return;
+        }
+
+        const constraints = {
+            video: {
+                facingMode: "user",
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
         activeStream = stream;
         video.srcObject = stream;
+
+        video.play().catch(e => console.warn("自動播放被阻擋:", e));
+
         video.onloadedmetadata = () => {
             video.classList.remove('d-none');
             document.getElementById('facePlaceholder').classList.add('d-none');
@@ -497,9 +644,22 @@ function startFaceCamera() {
             document.getElementById('btnFaceCam').classList.add('d-none');
             document.getElementById('btnUpload').classList.add('d-none');
             document.getElementById('btnFaceCapture').classList.remove('d-none');
+            document.getElementById('btnUploadSecondary').classList.remove('d-none');
             document.getElementById('viewToggleBar').classList.add('d-none');
         };
-    });
+
+    } catch (err) {
+        console.error("相機啟動錯誤詳細資訊:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            alert("相機權限被拒絕！請點擊網址列左側鎖頭允許存取。");
+        } else if (err.name === 'NotFoundError') {
+            alert("瀏覽器找不到符合條件的相機 (NotFoundError)！\n可能是相機被實體開關關閉，或是硬體未正確連接。");
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            alert("相機讀取失敗 (NotReadableError)！\n這通常是因為您的相機正被其他軟體 (如 LINE、Zoom) 佔用中。");
+        } else {
+            alert("啟動相機時發生未知錯誤：" + err.message);
+        }
+    }
 }
 
 function captureFace() {
@@ -514,6 +674,7 @@ function captureFace() {
     video.classList.add('d-none');
     document.getElementById('faceScanOverlay').classList.add('d-none');
     document.getElementById('btnFaceCapture').classList.add('d-none');
+    document.getElementById('btnUploadSecondary').classList.add('d-none');
     document.getElementById('btnFaceCam').classList.remove('d-none');
     document.getElementById('btnUpload').classList.remove('d-none');
 
@@ -522,6 +683,8 @@ function captureFace() {
         document.getElementById('facePreview').src = originalFaceUrl;
         document.getElementById('facePreviewContainer').classList.remove('d-none');
         document.getElementById('btnFaceConfirm').classList.remove('d-none');
+
+        resetFaceState(); // 拍新照片就重置分析
     } else {
         sideFaceUrl = dataUrl;
         const thumb = document.getElementById('sideFaceThumb');
@@ -534,15 +697,32 @@ function captureFace() {
         document.getElementById('facePreview').src = sideFaceUrl;
         document.getElementById('facePreviewContainer').classList.remove('d-none');
         document.getElementById('facePlaceholder').classList.add('d-none');
+        document.getElementById('btnFaceConfirm').classList.remove('d-none'); // 側臉也可觸發分析
 
         fetch(dataUrl).then(res => res.blob()).then(blob => {
             analysisData.sideFace = new File([blob], "side_face.jpg", { type: "image/jpeg" });
         });
+        resetFaceState();
     }
 }
 
 function handleFaceUpload(input, type){
     if(input.files[0]) {
+
+        if(activeStream) {
+            activeStream.getTracks().forEach(t=>t.stop());
+            activeStream = null;
+            document.getElementById('faceVideo').classList.add('d-none');
+            document.getElementById('faceScanOverlay').classList.add('d-none');
+            document.getElementById('btnFaceCapture').classList.add('d-none');
+
+            let btnUploadSecondary = document.getElementById('btnUploadSecondary');
+            if(btnUploadSecondary) btnUploadSecondary.classList.add('d-none');
+
+            document.getElementById('btnFaceCam').classList.remove('d-none');
+            document.getElementById('btnUpload').classList.remove('d-none');
+        }
+
         const reader = new FileReader();
         reader.onload = e => {
             if(type === 'front') {
@@ -552,6 +732,8 @@ function handleFaceUpload(input, type){
                 document.getElementById('facePlaceholder').classList.add('d-none');
                 document.getElementById('btnFaceConfirm').classList.remove('d-none');
                 document.getElementById('viewToggleBar').classList.add('d-none');
+
+                resetFaceState();
             } else {
                 sideFaceUrl = e.target.result;
                 const thumb = document.getElementById('sideFaceThumb');
@@ -566,7 +748,9 @@ function handleFaceUpload(input, type){
                     document.getElementById('facePreview').src = sideFaceUrl;
                     document.getElementById('facePreviewContainer').classList.remove('d-none');
                     document.getElementById('facePlaceholder').classList.add('d-none');
+                    document.getElementById('btnFaceConfirm').classList.remove('d-none');
                 }
+                resetFaceState();
             }
         };
         reader.readAsDataURL(input.files[0]);
@@ -600,6 +784,7 @@ function processFaceAnalysis(file) {
 
         if(faceRes.status==='error') { alert(faceRes.msg); document.getElementById('btnFaceConfirm').disabled = false; return; }
         analysisData.face = faceRes.data;
+        analysisData.image_path = faceRes.raw_image_path;
         document.getElementById('resFaceShape').innerText = faceRes.data.shape;
         document.getElementById('resEyes').innerText = faceRes.data.features.eyes;
         document.getElementById('resNose').innerText = faceRes.data.features.nose;
@@ -612,26 +797,20 @@ function processFaceAnalysis(file) {
             document.getElementById('resSkinSeason').innerText = `✨ ${skinRes.data.season_name}`;
             document.getElementById('resSkinSeason').classList.remove('bg-light','text-dark');
             document.getElementById('resSkinSeason').classList.add('bg-primary', 'text-white');
-        } else {
-            document.getElementById('resUndertone').innerText = "未檢出";
-            document.getElementById('resSkinSeason').innerText = "膚色分析失敗";
         }
 
         if(faceRes.data.landmarks_3d_grouped) {
-            document.getElementById('modeFront').checked = true;
-            captureMode = 'front';
-
             document.getElementById('viewToggleBar').classList.remove('d-none');
+            // 💡 將正臉與側臉的 2D 分析圖分別存起來
             if(faceRes.data.analyzed_image) analyzedFaceUrl = "/static/uploads/" + faceRes.data.analyzed_image;
+            if(faceRes.data.analyzed_side_image) analyzedSideFaceUrl = "/static/uploads/" + faceRes.data.analyzed_side_image;
 
-            // 呼叫 3D 繪圖
             render3DBoneStructure(
                 faceRes.data.landmarks_3d_grouped,
                 faceRes.data.landmarks_3d_raw,
                 faceRes.data.aspect_ratio
             );
 
-            // [UX 優化] 分析完成後，自動切回原圖，需手動切換到 3D
             toggleFaceView('original');
         }
 
@@ -644,65 +823,56 @@ function processFaceAnalysis(file) {
 function render3DBoneStructure(groupedLandmarks, rawLandmarks, ar) {
     let traces = [];
 
-    // [修正] 3D 顯示邏輯
-    if (rawLandmarks && rawLandmarks.length > 0) {
-        let mx = [], my = [], mz = [];
+    traces.push({
+        x: rawLandmarks.map(p => p.x),
+        y: rawLandmarks.map(p => p.y),
+        z: rawLandmarks.map(p => p.z),
+        type: 'mesh3d',
+        color: '#00e5ff',
+        opacity: 0.85,
+        delaunayaxis: 'z',
+        hoverinfo: 'none',
+        showlegend: false,
+        lighting: {
+            ambient: 0.5,
+            diffuse: 0.8,
+            specular: 0.6,
+            roughness: 0.2,
+            fresnel: 0.3
+        },
+        lightposition: { x: 100, y: 200, z: 150 }
+    });
 
-        rawLandmarks.forEach(p => {
-            // X 軸：翻轉 (鏡像) 並校正長寬比
-            mx.push((p.x - 0.5) * -1 * ar);
-
-            // [關鍵修正] Y 軸：乘上 -1 以修正顛倒問題
-            // 原本是 p.y - 0.5 (造成倒立)，現在改為 (p.y - 0.5) * -1
-            my.push((p.y - 0.5) * -1);
-
-            mz.push(p.z);
-        });
-
+    groupedLandmarks.forEach(group => {
         traces.push({
-            type: 'mesh3d',
-            x: mx, y: my, z: mz,
-
-            // 風格：青色單色階漸層
-            intensity: mz,
-            colorscale: [
-                [0, 'rgb(0, 40, 40)'],    // 深處 (暗青)
-                [0.4, 'rgb(0, 100, 100)'], // 中間
-                [0.7, 'rgb(0, 255, 255)'], // 淺處 (亮青)
-                [1, 'rgb(220, 255, 255)']  // 凸點 (白光)
-            ],
-
-            opacity: 1.0,       // 滿版不透明
-            flatshading: false, // 平滑著色
-            alphahull: -1,      // 確保表面封閉
-            name: 'Face Mesh',
-
-            // 質感光照
-            lighting: {
-                ambient: 0.5,
-                diffuse: 0.9,
-                roughness: 0.3,
-                specular: 0.5
+            x: group.points.map(p => p.x),
+            y: group.points.map(p => p.y),
+            z: group.points.map(p => p.z),
+            type: 'scatter3d',
+            mode: 'lines',
+            line: {
+                color: group.color,
+                width: 6
             },
-            hoverinfo: 'none'
+            name: group.name,
+            hoverinfo: 'none',
+            showlegend: false
         });
-    }
+    });
 
     let layout = {
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
-        showlegend: false,
         scene: {
-            xaxis: { visible: false },
-            yaxis: { visible: false },
-            zaxis: { visible: false },
-
-            // 鎖定比例，防止變形
-            aspectmode: 'data',
-
+            xaxis: { visible: false, range: [-1, 1], autorange: false },
+            yaxis: { visible: false, range: [1, -1], autorange: false },
+            zaxis: { visible: false, range: [-1, 1], autorange: false },
+            aspectmode: 'cube',
             camera: {
-                eye: { x: 0, y: 0, z: 2.2 },
-                up: { x: 0, y: 1, z: 0 }
+                projection: { type: 'orthographic' },
+                eye: { x: 0, y: 0, z: 1.5 },
+                up: { x: 0, y: 1, z: 0 },
+                center: { x: 0, y: 0, z: 0 }
             },
             dragmode: 'orbit'
         },
@@ -729,27 +899,30 @@ function calculateManualShape() {
     const hip = parseFloat(document.getElementById('inHip').value) || 0;
     const el = document.getElementById('finalBodyShape');
 
-    if ((waist > 0 && hip > 0) || (shoulderWidth > 0 && hip > 0) || (chest > 0 && hip > 0)) {
+    if (hip > 0) {
         let shape = "H";
         let shapeName = "直筒型";
 
-        if (chest > 0 && waist > 0 && hip > 0) {
-            const whRatio = waist / hip;
+        const whRatio = waist / hip;
+        const upperWidth = chest > 0 ? chest : (shoulderWidth * 2.5);
+        const shRatio = upperWidth / hip;
 
-            if (waist >= hip || whRatio > 0.88) {
-                shape = "O"; shapeName = "蘋果型";
-            } else if (whRatio <= 0.80 && Math.abs(chest - hip) < hip * 0.15) {
+        if (shRatio >= 1.05) {
+            shape = "Y"; shapeName = "倒三角型";
+        }
+        else if (shRatio <= 0.92) {
+            shape = "A"; shapeName = "梨型";
+        }
+        else {
+            if (whRatio < 0.72) {
                 shape = "X"; shapeName = "沙漏型";
-            } else if (hip > chest * 1.05) {
-                shape = "A"; shapeName = "梨型";
-            } else if (chest > hip * 1.05) {
-                shape = "Y"; shapeName = "倒三角型";
             }
-        } else if (shoulderWidth > 0 && hip > 0) {
-            const estShoulderCirc = shoulderWidth * 2.5;
-            const ratio = estShoulderCirc / hip;
-            if (ratio > 1.05) { shape = "Y"; shapeName = "倒三角型"; }
-            else if (ratio < 0.95) { shape = "A"; shapeName = "梨型"; }
+            else if (whRatio >= 0.94) {
+                shape = "O"; shapeName = "蘋果型";
+            }
+            else {
+                shape = "H"; shapeName = "直筒型";
+            }
         }
 
         detectedBodyShape = shape;
@@ -762,11 +935,8 @@ function calculateManualShape() {
 function cleanAIText(text) { if (!text) return ""; return text.replace(/[#*]/g, ''); }
 
 function submitFullAnalysis(isSkip=false) {
-    // ⚠️【關鍵修正 1】：直接抓取完整的文字 (如 "梨型 (A)")
-    // 這樣後端 AI 演算法才能比對到 "梨" 這個字並加分
     let finalShape = document.getElementById('finalBodyShape').innerText;
 
-    // 防呆：如果還是預設字眼，給予預設身形
     if (finalShape.includes("等待輸入") || finalShape.includes("略過")) {
         finalShape = "直筒型 (H-Shape)";
     }
@@ -777,10 +947,10 @@ function submitFullAnalysis(isSkip=false) {
             shape: finalShape,
             problems: Array.from(document.querySelectorAll('#manualAdjust input:checked')).map(c => c.value)
         },
-        skin_season: analysisData.skin
+        skin_season: analysisData.skin,
+        image_path: analysisData.image_path
     };
 
-    // ⚠️【UX 優化】：讓按鈕顯示轉圈圈，防止使用者狂按以為當機
     const btnSubmit = document.querySelector('button[onclick="submitFullAnalysis()"]');
     const originalBtnText = btnSubmit ? btnSubmit.innerHTML : "✨ 生成全方位形象報告";
     if (btnSubmit) {
@@ -792,7 +962,6 @@ function submitFullAnalysis(isSkip=false) {
         method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
     }).then(r=>r.json()).then(data=>{
-        // 恢復按鈕狀態
         if (btnSubmit) {
             btnSubmit.innerHTML = originalBtnText;
             btnSubmit.disabled = false;
@@ -803,7 +972,6 @@ function submitFullAnalysis(isSkip=false) {
             return;
         }
 
-        // --- 填入報告資料 (維持原狀) ---
         let rawName = data.result.archetype || "分析完成";
         if (rawName.includes(' (')) {
             let parts = rawName.split(' (');
@@ -855,9 +1023,6 @@ function submitFullAnalysis(isSkip=false) {
             }
         }
 
-        // ===============================================
-        // ⚠️【關鍵修正 2】：隱藏第二步，顯示第三步！並捲動到最上方
-        // ===============================================
         document.getElementById('step2').classList.add('d-none');
         document.getElementById('step3').classList.remove('d-none');
         updateProgress(3);
@@ -877,7 +1042,43 @@ function submitFullAnalysis(isSkip=false) {
 function initPose() { if(poseModel) return; poseModel = new Pose({locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`}); poseModel.setOptions({modelComplexity: 1, smoothLandmarks: true}); poseModel.onResults(onPoseResults); }
 function startBodyCamera() { initPose(); const v=document.getElementById('bodyVideo'); bodyCameraMgr=new Camera(v,{onFrame:async()=>{await poseModel.send({image:v})},width:640,height:480}); bodyCameraMgr.start(); document.getElementById('bodyPlaceholder').classList.add('d-none'); v.classList.remove('d-none'); document.getElementById('bodyScanBeam').classList.remove('d-none'); document.getElementById('bodyControlsCam').querySelector('button').classList.add('d-none'); document.getElementById('btnBodyCapture').classList.remove('d-none'); }
 function handleBodyUpload(i){if(i.files[0]){initPose();const f=i.files[0],img=document.getElementById('bodyPreview');const r=new FileReader();r.onload=e=>{img.src=e.target.result;img.classList.remove('d-none');document.getElementById('bodyPlaceholder').classList.add('d-none');document.getElementById('bodyScanBeam').classList.remove('d-none');img.onload=async()=>{await poseModel.send({image:img});document.getElementById('bodyScanBeam').classList.add('d-none');}};r.readAsDataURL(f);}}
-function onPoseResults(r){const c=document.getElementById('bodyOutputCanvas'),ctx=c.getContext('2d');c.width=r.image.width;c.height=r.image.height;ctx.clearRect(0,0,c.width,c.height);if(r.poseLandmarks){drawConnectors(ctx,r.poseLandmarks,POSE_CONNECTIONS,{color:'#4682B4',lineWidth:3});drawLandmarks(ctx,r.poseLandmarks,{color:'#D4A5A5',lineWidth:2,radius:4});const lm=r.poseLandmarks,s=Math.abs(lm[11].x-lm[12].x),h=Math.abs(lm[23].x-lm[24].x);if(h>0){const ratio=s/h;let shape=(ratio>1.1)?'Y':(ratio<0.9)?'A':'H';detectedBodyShape=shape;document.getElementById('finalBodyShape').innerText=(shape=='Y'?'倒三角型':shape=='A'?'梨型':'直筒型')+" ("+shape+")";document.getElementById('finalBodyShape').classList.add('text-tech');}}}
+
+function onPoseResults(r) {
+    const c = document.getElementById('bodyOutputCanvas'), ctx = c.getContext('2d');
+    c.width = r.image.width; c.height = r.image.height; ctx.clearRect(0, 0, c.width, c.height);
+    if (r.poseLandmarks) {
+        drawConnectors(ctx, r.poseLandmarks, POSE_CONNECTIONS, { color: '#4682B4', lineWidth: 3 });
+        drawLandmarks(ctx, r.poseLandmarks, { color: '#D4A5A5', lineWidth: 2, radius: 4 });
+
+        const lm = r.poseLandmarks;
+        const shoulder = Math.abs(lm[11].x - lm[12].x);
+        const hip = Math.abs(lm[23].x - lm[24].x);
+        const waist = Math.abs(((lm[11].x + lm[23].x) / 2) - ((lm[12].x + lm[24].x) / 2)) * 0.8;
+
+        if (hip > 0) {
+            const shRatio = shoulder / hip;
+            const whRatio = waist / hip;
+            let shape = "H";
+
+            if (whRatio < 0.80 && Math.abs(shoulder - hip) < hip * 0.15) {
+                shape = 'X';
+            } else if (whRatio > 0.95) {
+                shape = 'O';
+            } else if (shRatio > 1.1) {
+                shape = 'Y';
+            } else if (shRatio < 0.92) {
+                shape = 'A';
+            }
+
+            detectedBodyShape = shape;
+
+            const shapeMap = { 'X': '沙漏型 (X)', 'O': '蘋果型 (O)', 'Y': '倒三角型 (Y)', 'A': '梨型 (A)', 'H': '直筒型 (H)' };
+            document.getElementById('finalBodyShape').innerText = shapeMap[shape] || '直筒型 (H)';
+            document.getElementById('finalBodyShape').classList.add('text-tech');
+        }
+    }
+}
+
 function captureBodyMetrics(){if(bodyCameraMgr)bodyCameraMgr.stop();document.getElementById('bodyScanBeam').classList.add('d-none');if(document.getElementById('finalBodyShape').innerText.includes("等待")){alert("尚未偵測到數據");}else{alert("數據已鎖定");}}
 </script>
 {% endblock %}

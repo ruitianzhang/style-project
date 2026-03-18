@@ -157,15 +157,26 @@
                     <div class="p-4 d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
                             <a href="{{ url_for('user_public_profile', user_id=post.author_id) }}" class="text-decoration-none">
-                                <div class="rounded-circle me-3 border" style="width: 48px; height: 48px; overflow: hidden; border-color: #f3efee !important;">
-                                    <img src="{{ post.user_avatar if post.user_avatar else 'https://ui-avatars.com/api/?name=' + post.author_name }}" class="w-100 h-100" style="object-fit: cover;">
-                                </div>
+                                <img src="{{ post.author_avatar if post.author_avatar else 'https://ui-avatars.com/api/?name=' + post.author_name }}"
+                                     class="rounded-circle me-3 border shadow-sm"
+                                     style="width: 45px; height: 45px; object-fit: cover;">
                             </a>
-                            <div style="line-height: 1.2;">
-                                <h6 class="mb-0 fw-bold text-dark">{{ post.author_name }}</h6>
-                                <small class="text-muted" style="font-size: 0.75rem;">{{ post.created_at }}</small>
+                            <div>
+                                <div class="fw-bold text-dark" style="font-size: 0.95rem;">
+                                    {{ post.author_name }}
+                                    {% if post.is_vip %}
+                                        <i class="fas fa-crown text-warning ms-1" title="VIP 會員"></i>
+                                    {% endif %}
+                                </div>
+                                <div class="text-muted mt-1" style="font-size: 0.75rem;">
+                                    {{ post.created_at }}
+                                    {% if post.is_anonymous %}
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary ms-1">匿名</span>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
+
                         <div class="dropdown">
                             <button class="btn btn-link text-muted p-0 opacity-50" data-bs-toggle="dropdown">
                                 <i class="fas fa-ellipsis-h"></i>
@@ -210,19 +221,27 @@
                                     </div>
                                     <div class="vote-bar-fill h-100" id="bar-bg-yes-{{ post.id }}" style="width: {{ post.yes_percent }}%;"></div>
                                 </button>
-                                <button class="btn btn-light flex-grow-1 rounded-pill py-2 border-0 bg-white shadow-sm text-muted" style="font-size: 0.85rem;" onclick="vote('{{ post.id }}', 'no')">不適合 <span id="no-{{ post.id }}" class="ms-1">{{ post.poll_no }}</span></button>
+                                <button class="btn btn-light flex-grow-1 rounded-pill py-2 border-0 bg-white shadow-sm text-muted" style="font-size: 0.85rem;" onclick="vote('{{ post.id }}', 'no')">
+                                    不適合 <span id="no-{{ post.id }}" class="ms-1">{{ post.poll_no }}</span>
+                                </button>
                             </div>
                         </div>
                         {% endif %}
 
                         <div class="mb-3">
                             <span class="fw-bold me-2 text-dark">{{ post.author_name }}</span>
-                            <span class="text-secondary small">{{ post.content }}</span>
+                            <span class="text-secondary small">
+                                {% if post.content %}
+                                    {{ post.content }}
+                                {% else %}
+                                    分享了這套風格穿搭 ✨
+                                {% endif %}
+                            </span>
                         </div>
 
                         <div class="d-flex flex-wrap gap-2 mb-4">
                             {% if post.tags %}
-                                {% for tag in post.tags.split(',') %}
+                                {% for tag in post.tags %}
                                 <a href="{{ url_for('shop_page', q=tag.strip()) }}" class="category-tag"># {{ tag.strip() }}</a>
                                 {% endfor %}
                             {% endif %}

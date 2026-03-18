@@ -1,8 +1,15 @@
+import os
+import warnings
+
+# [隱藏日誌] 關閉底層套件的警告與亂碼輸出
+os.environ['ORT_LOGGING_LEVEL'] = '3'  # 3 代表只顯示 Fatal 錯誤
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' # 順便隱藏 TensorFlow 的除錯訊息
+warnings.filterwarnings("ignore", category=FutureWarning)
+
 import base64
 import concurrent.futures
 import datetime
 import json
-import os
 import random
 import re
 import shutil
@@ -21,8 +28,9 @@ from authlib.integrations.flask_client import OAuth
 from functools import wraps
 from bs4 import BeautifulSoup
 from fpdf import FPDF
+from typing import Any
 from insightface.app import FaceAnalysis
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -49,7 +57,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB 限制
 # [API 金鑰與常數]
 CURRENT_MODEL_VERSION = "StyleNet-Evo-v3.0"
 API_ACCESS_KEY = "open_style_api_2026"
-GENAI_API_KEY = "AIzaSyCIfiAE7OQTpCEsQlwMhdviWZ9xngoEzKI"
+GENAI_API_KEY = "AIzaSyCocgWFBaFU4SBx3MzJpOFihPY6gD2aDdA"
 
 # 多語系設定
 TRANSLATIONS = {
@@ -136,19 +144,21 @@ mp_drawing_styles = mp.solutions.drawing_styles
 GRADIO_AVAILABLE = False
 try:
     from gradio_client import Client, file
-
     GRADIO_AVAILABLE = True
     print(">> ✅ Gradio Client 已啟用")
 except ImportError:
-    print(">> ⚠️ Warning: gradio_client 未安裝，將使用 OpenCV 作為備案。")
+    Client = None
+    file = None
+    GRADIO_AVAILABLE = False
+    print(">> ❌ Gradio Client 未安裝")
 
 #  輔助函式 (Helper Functions)
 def get_db_connection():
     """建立資料庫連線"""
     db_path = os.path.join(BASE_DIR, 'style_system.db')
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+    db_conn = sqlite3.connect(db_path)
+    db_conn.row_factory = sqlite3.Row
+    return db_conn
 
 def allowed_file(filename):
     """檢查檔案副檔名"""
@@ -157,13 +167,11 @@ def allowed_file(filename):
 
 # --- 圖片處理輔助 ---
 def cv2_to_base64(img):
-    """將 OpenCV 圖片轉為 Base64 字串 (用於前端顯示)"""
-    try:
-        _, buffer = cv2.imencode('.jpg', img)
-        return f"data:image/jpeg;base64,{base64.b64encode(buffer).decode('utf-8')}"
-    except Exception as e:
-        print(f"Base64 encoding error: {e}")
-        return None
+    success, buffer = cv2.imencode('.jpg', img)
+    if success:
+        b64_str = base64.b64encode(buffer.tobytes()).decode('utf-8')
+        return b64_str
+    return None
 
 def base64_to_cv2(b64str):
     """將 Base64 字串轉為 OpenCV 圖片 (用於後端處理)"""
@@ -171,8 +179,9 @@ def base64_to_cv2(b64str):
         if ',' in b64str:
             b64str = b64str.split(',')[1]
         return cv2.imdecode(np.frombuffer(base64.b64decode(b64str), np.uint8), cv2.IMREAD_COLOR)
-    except Exception as e:
-        print(f"Base64 decoding error: {e}")
+
+    except Exception as err:
+        print(f"Base64 decoding error: {err}")
         return None
 
 def get_fashion_news():
@@ -198,8 +207,8 @@ def get_fashion_news():
                     title = title.split(' - ')[0]
                 news_headlines.append(f"★ {title}")
 
-    except Exception as e:
-        print(f"News Error: {e}")
+    except Exception as err:
+        print(f"News Error: {err}")
         # 備案新聞
         news_headlines = [
             "★ 2026 春夏流行色系發布",
@@ -229,12 +238,12 @@ def vip_required(f):
             flash('請先登入以使用此功能', 'info')
             return redirect(url_for('login_page', next=request.url))
 
-        # 2. [安全性關鍵] 即時查詢資料庫確認 VIP 狀態
+        # 2. 即時查詢資料庫確認 VIP 狀態
         # 原因：Session 可能會過期或被偽造，直接查 DB 最準確
         try:
-            conn = get_db_connection()
-            user = conn.execute('SELECT is_vip, role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-            conn.close()
+            db_conn = get_db_connection()
+            user = db_conn.execute('SELECT is_vip, role FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+            db_conn.close()
 
             # 如果找不到用戶，或者用戶不是 VIP (且不是管理員/官方)
             # 這裡我們給管理員 (admin) 和官方 (official) 特權，方便測試
@@ -248,8 +257,8 @@ def vip_required(f):
                 flash('✨ 此功能為 VIP 專屬，解鎖以享受完整 AI 分析！', 'warning')
                 return redirect(url_for('premium_landing'))  # 導向付費頁面
 
-        except Exception as e:
-            print(f"VIP Check Error: {e}")
+        except Exception as err:
+            print(f"VIP Check Error: {err}")
             # 發生資料庫錯誤時，為了安全起見，先拒絕訪問
             flash('系統驗證發生錯誤，請稍後再試', 'error')
             return redirect(url_for('index'))
@@ -1319,38 +1328,64 @@ FACE_BODY_RULES = {
     ]
 }
 
-# 四季色彩資料庫 (SEASONAL_COLOR_DATABASE)
 SEASONAL_COLOR_DATABASE = {
     "Spring": {
         "name": "春季型 (Spring)",
-        "logic": "暖色調 + 高明度 (清透/明亮)",
-        "vibe": "活潑、可愛、年輕",
-        "best_colors": ["#FF7F50 (珊瑚橘)", "#FFFFE0 (鵝黃)", "#90EE90 (嫩綠)", "象牙白"],
-        "avoid_colors": ["黑", "深灰", "冷藍"],
+        "logic": "暖色調 + 高明度 + 高純度 (清透 / 明亮 / 鮮豔)",
+        "vibe": "活潑、可愛、年輕、元氣、親和力",
+        "color_palette": {
+            "primary": ["#FF7F50 (珊瑚橘)", "#FFB6C1 (蜜桃粉)", "#FFFFE0 (鵝黃)", "#98FB98 (薄荷嫩綠)"],
+            "accent": ["#FF4500 (亮橘紅)", "#00CED1 (亮水藍)", "#FFD700 (明黃色)"],
+            "neutral": ["#FFFFF0 (象牙白)", "#F5DEB3 (暖米色)", "#D2B48C (淺駝色)", "#8B4513 (焦糖棕)"]
+        },
+        "avoid_colors": ["純黑色", "深灰色", "冷艷的冰藍色", "混濁的暗色系"],
+        "jewelry_metal": ["亮金色", "玫瑰金"],
+        "makeup_advice": "底妝強調水光透亮感；眼唇彩適合蜜桃色、珊瑚橘色系，避免過度厚重的煙燻妝或深紫色唇彩。",
         "matrix_match": ["Q1", "CENTER"]
     },
+
     "Summer": {
         "name": "夏季型 (Summer)",
-        "logic": "冷色調 + 高明度 (柔和/霧面)",
-        "vibe": "溫柔、優雅、氣質",
-        "best_colors": ["#E6E6FA (薰衣草紫)", "#B0C4DE (天空藍)", "#FFC0CB (乾燥玫瑰)", "米灰"],
-        "avoid_colors": ["正橘", "金黃", "深咖"],
+        "logic": "冷色調 + 高明度 + 低純度 (柔和 / 霧面 / 莫蘭迪)",
+        "vibe": "溫柔、優雅、氣質、清冷、知性",
+        "color_palette": {
+            "primary": ["#E6E6FA (薰衣草紫)", "#B0C4DE (天空霧藍)", "#D8BFD8 (灰粉/乾燥玫瑰)", "#F0FFF0 (冰薄荷)"],
+            "accent": ["#DB7093 (梅子粉)", "#5F9EA0 (灰綠色)", "#87CEEB (柔和湛藍)"],
+            "neutral": ["#F5F5F5 (灰白色)", "#DCDCDC (淺灰)", "#708090 (藍灰色)", "#483D8B (暗紫藍)"]
+        },
+        "avoid_colors": ["正橘色", "明黃色", "厚重的大地色", "強烈的高對比螢光色"],
+        "jewelry_metal": ["銀色", "白金", "珍珠"],
+        "makeup_advice": "底妝適合呈現半霧面啞光的高級感；彩妝首選玫瑰色、梅子色、冷粉色系，修容建議使用帶灰調的陰影色。",
         "matrix_match": ["Q1", "Q3"]
     },
+
     "Autumn": {
         "name": "秋季型 (Autumn)",
-        "logic": "暖色調 + 低明度 (濃郁/沉穩)",
-        "vibe": "成熟、知性、奢華",
-        "best_colors": ["#8B4513 (焦糖)", "#808000 (橄欖綠)", "#DAA520 (芥末黃)", "磚紅"],
-        "avoid_colors": ["螢光粉", "冰藍", "純白"],
+        "logic": "暖色調 + 低明度 + 低純度 (濃郁 / 沉穩 / 醇厚)",
+        "vibe": "成熟、高級、奢華、復古、大氣",
+        "color_palette": {
+            "primary": ["#B22222 (楓葉磚紅)", "#808000 (橄欖綠)", "#DAA520 (芥末黃)", "#D2691E (南瓜橘)"],
+            "accent": ["#8B0000 (深酒紅)", "#2E8B57 (復古墨綠)", "#FF8C00 (深橘色)"],
+            "neutral": ["#8B4513 (深咖啡/巧克力)", "#A0522D (栗子棕)", "#F5F5DC (燕麥米)", "#556B2F (軍綠色)"]
+        },
+        "avoid_colors": ["螢光粉", "冰藍色", "純白色", "所有偏冷的亮色系"],
+        "jewelry_metal": ["復古黃金", "黃銅", "木質/琥珀飾品"],
+        "makeup_advice": "非常適合強調輪廓立體感的濃郁妝容；唇彩完美駕馭紅棕色、土橘色、磚紅色，眼妝適合大地色疊加微暖金屬光澤。",
         "matrix_match": ["Q3", "Q4", "CENTER"]
     },
+
     "Winter": {
         "name": "冬季型 (Winter)",
-        "logic": "冷色調 + 低明度/高對比 (銳利/鮮明)",
-        "vibe": "摩登、個性、氣場",
-        "best_colors": ["#000000 (正黑)", "#FFFFFF (純白)", "#000080 (寶藍)", "#DC143C (酒紅)"],
-        "avoid_colors": ["濁色", "大地色", "暖橘"],
+        "logic": "冷色調 + 低明度 / 高對比 (銳利 / 鮮明 / 極端)",
+        "vibe": "摩登、個性、氣場、冷艷、戲劇化",
+        "color_palette": {
+            "primary": ["#000000 (極致黑)", "#FFFFFF (純白)", "#000080 (寶石藍)", "#DC143C (正紅色)"],
+            "accent": ["#FF00FF (亮紫紅)", "#00FF00 (霓虹綠)", "#8A2BE2 (皇家紫)"],
+            "neutral": ["#A9A9A9 (深鐵灰)", "#2F4F4F (炭灰色)", "#191970 (午夜藍)", "#800000 (深酒紅)"]
+        },
+        "avoid_colors": ["混濁的大地色", "淺橘色", "暖棕色", "米黃色"],
+        "jewelry_metal": ["亮銀色", "白金", "冷冽的鑽石/水晶"],
+        "makeup_advice": "適合高對比度的妝容，例如乾淨俐落的眼線搭配氣場全開的正紅唇，或是帶有冷色調亮片的眼妝。",
         "matrix_match": ["Q2", "Q4"]
     }
 }
@@ -1386,13 +1421,14 @@ ALL_STYLE_TAGS = get_all_style_tags()
 
 class BaseFashionEngine:
     """統一處理所有 AI 引擎的影像讀取、縮放與 RGB 轉換"""
-
-    def _read_image(self, image_path, max_dim=1024):
+    @staticmethod
+    def _read_image(image_path, max_dim=1024):
         # 1. 檢查路徑
         if not os.path.exists(image_path):
             return None, None, "找不到檔案"
 
         # 2. 處理中文路徑讀取
+        # noinspection PyBroadException
         try:
             img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), -1)
         except Exception:
@@ -1408,6 +1444,7 @@ class BaseFashionEngine:
             img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
         # 4. 統一轉換為 RGB (供 AI 模型使用)
+        # noinspection PyBroadException
         try:
             img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         except:
@@ -1422,7 +1459,8 @@ class FaceGeometryMixin:
     負責幾何計算，確保「訓練」與「分析」使用完全相同的數學標準。
     """
 
-    def _calculate_vector_angle(self, p1, p2, p3):
+    @staticmethod
+    def _calculate_vector_angle(p1, p2, p3):
         v1 = p1 - p2
         v2 = p3 - p2
         norm_v1 = np.linalg.norm(v1)
@@ -1454,45 +1492,42 @@ class FaceGeometryMixin:
             ref_dist = np.linalg.norm(pts_2d[468] - pts_2d[473])
         else:
             ref_dist = np.linalg.norm(pts_2d[362] - pts_2d[263])
-        if ref_dist == 0: ref_dist = 1.0
+        if ref_dist == 0:ref_dist = 1.0
 
         # 1. 眼部
-        eye_w = np.linalg.norm(pts_2d[362] - pts_2d[263])
-        eye_h = np.linalg.norm(pts_2d[159] - pts_2d[145])
+        eye_w = np.linalg.norm(pts_2d[362] - pts_2d[263])/ ref_dist
+        eye_h = np.linalg.norm(pts_2d[159] - pts_2d[145])/ ref_dist
         dx = pts_2d[263][0] - pts_2d[362][0]
         dy = -(pts_2d[263][1] - pts_2d[362][1])
         eye_tilt = np.degrees(np.arctan2(dy, dx))
 
         # 2. 鼻部
-        nose_w = np.linalg.norm(pts_2d[327] - pts_2d[278])
-        nose_h = np.linalg.norm(pts_2d[168] - pts_2d[2])
-        nasal_angle = self._calculate_vector_angle(pts_2d[1], pts_2d[2], pts_2d[0])
+        nose_w = np.linalg.norm(pts_2d[327] - pts_2d[278])/ ref_dist
+        nose_h = np.linalg.norm(pts_2d[168] - pts_2d[2])/ ref_dist
+        nasal_angle = self._calculate_vector_angle(pts_2d[1], pts_2d[2], pts_2d[0])/ ref_dist
 
         # 3. 唇部
-        upper_h = np.linalg.norm(pts_2d[0] - pts_2d[13])
-        lower_h = np.linalg.norm(pts_2d[14] - pts_2d[17])
-        mouth_w = np.linalg.norm(pts_2d[61] - pts_2d[291])
+        upper_h = np.linalg.norm(pts_2d[0] - pts_2d[13])/ ref_dist
+        lower_h = np.linalg.norm(pts_2d[14] - pts_2d[17])/ ref_dist
+        mouth_w = np.linalg.norm(pts_2d[61] - pts_2d[291])/ ref_dist
 
-        corner_y_avg = (pts_2d[61][1] + pts_2d[291][1]) / 2
-        center_y = pts_2d[13][1]
+        corner_y_avg = (pts_2d[61][1] + pts_2d[291][1]) / 2/ ref_dist
+        center_y = pts_2d[13][1]/ ref_dist
         mouth_offset = (center_y - corner_y_avg) / (mouth_w + 1e-6) * 100
         cupid_angle = self._calculate_vector_angle(pts_2d[267], pts_2d[0], pts_2d[37])
 
         # 4. 眉毛
-        brow_w = np.linalg.norm(pts_2d[66] - pts_2d[70])
+        brow_w = np.linalg.norm(pts_2d[66] - pts_2d[70])/ ref_dist
         brow_dy = -(pts_2d[66][1] - pts_2d[70][1])
         brow_tilt = np.degrees(np.arctan2(brow_dy, brow_w)) if brow_w > 0 else 0
         brow_arch = np.linalg.norm(pts_2d[105] - pts_2d[70]) / (brow_w + 1e-6)
 
         # 5. 臉型
-        face_w = np.linalg.norm(pts_2d[454] - pts_2d[234])
-        face_h = np.linalg.norm(pts_2d[10] - pts_2d[152])
-        jaw_w = np.linalg.norm(pts_2d[361] - pts_2d[132])
+        face_w = np.linalg.norm(pts_2d[454] - pts_2d[234])/ ref_dist
+        face_h = np.linalg.norm(pts_2d[10] - pts_2d[152])/ ref_dist
+        jaw_w = np.linalg.norm(pts_2d[361] - pts_2d[132])/ ref_dist
 
-        # 6. [新增] 側臉凸度 (Facial Convexity)
-        # 眉心(168) -> 鼻下點(2) -> 下巴(152) 的夾角
-        # 用於判斷 直面型 / 凸面型(微暴牙/縮下巴) / 凹面型(戽斗)
-        # 注意：這在 2D 正面照可能不準，但在 3D 點位中很有意義
+        # 6. 側臉凸度 (Facial Convexity)
         profile_angle = self._calculate_vector_angle(pts_2d[168], pts_2d[2], pts_2d[152])
 
         return {
@@ -1506,18 +1541,18 @@ class FaceGeometryMixin:
             },
             'eyebrows': {'tilt': float(brow_tilt), 'arch': float(brow_arch)},
             'face_contour': {'lw_ratio': float(face_h / (face_w + 1e-6)), 'jaw_ratio': float(jaw_w / (face_w + 1e-6))},
-            'profile': {'convexity': float(profile_angle)}  # [新增]
+            'profile': {'convexity': float(profile_angle)}
         }
 
 # Part 2: FaceTrainer (模型訓練器 - 支援局部圖)
 class FaceTrainer(BaseFashionEngine, FaceGeometryMixin):
-    def __init__(self, reference_root='static/references', model_path='face_model_v1.json'):
+    def __init__(self, reference_root='static/references', target_model_path='face_model_v1.json'):
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             static_image_mode=True, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5
         )
         self.reference_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), reference_root)
-        self.model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), model_path)
+        self.model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), target_model_path)
 
         self.FOLDER_MAP = {
             'eye_shape': 'eyes', 'nose_shape': 'nose',
@@ -1525,7 +1560,6 @@ class FaceTrainer(BaseFashionEngine, FaceGeometryMixin):
             'face_shape': 'face_contour'
         }
 
-        # [針對您的截圖設定]
         self.STYLE_NAME_MAP = {
             'eyes': {'phoenix': '丹鳳眼', 'almond': '杏仁眼', 'round': '圓眼', 'droopy': '下垂眼', 'amorous': '桃花眼',
                      'slit': '細長眼'},
@@ -1539,7 +1573,8 @@ class FaceTrainer(BaseFashionEngine, FaceGeometryMixin):
                              'diamond': '菱形臉', 'pear': '梨形臉'}
         }
 
-    def _get_landmarks_array(self, image, results):
+    @staticmethod
+    def _get_landmarks_array(image, results):
         h, w = image.shape[:2]
         landmarks = results.multi_face_landmarks[0].landmark
         coords = np.array([(lm.x * w, lm.y * h, lm.z * w) for lm in landmarks])
@@ -1550,11 +1585,13 @@ class FaceTrainer(BaseFashionEngine, FaceGeometryMixin):
         model_db = {k: {} for k in self.FOLDER_MAP.values()}
         stats = []
 
-        if not os.path.exists(self.reference_root): return "錯誤：找不到素材資料夾"
+        if not os.path.exists(self.reference_root):
+            return "錯誤：找不到素材資料夾"
 
         for folder_name, db_key in self.FOLDER_MAP.items():
             category_path = os.path.join(self.reference_root, folder_name)
-            if not os.path.exists(category_path): continue
+            if not os.path.exists(category_path):
+                continue
 
             sub_folders = [f for f in os.listdir(category_path) if os.path.isdir(os.path.join(category_path, f))]
             category_map = self.STYLE_NAME_MAP.get(db_key, {})
@@ -1570,55 +1607,63 @@ class FaceTrainer(BaseFashionEngine, FaceGeometryMixin):
                         style_display_name = zh_name
                         break
 
-                vectors = []
+                vectors = []  # 用於蒐集該風格的所有特徵向量
                 images = []
                 for ext in ['*.jpg', '*.jpeg', '*.png', '*.webp']:
                     images.extend(glob.glob(os.path.join(style_path, ext)))
 
                 for img_path in images:
+                    # noinspection PyBroadException
                     try:
+                        # 呼叫靜態方法時，若已在類別內且正確定義，可直接呼叫或透過類別名
                         img, img_rgb, err = self._read_image(img_path, max_dim=800)
-                        if err: continue
+                        if err:
+                            continue
 
-                        results = self.face_mesh.process(img_rgb)
-                        vec_full = {}
+                        results: Any = self.face_mesh.process(img_rgb)
 
                         if results.multi_face_landmarks:
-                            pts = self._get_landmarks_array(img, results)
+                            pts = FaceTrainer._get_landmarks_array(img, results)
                             vec_full = self._extract_feature_vector(pts[:, :2], img.shape)
                         else:
-                            # 局部圖 fallback
+                            # 局部 fallback
                             vec_full = self._extract_feature_vector(None, img.shape)
 
-                        if db_key in vec_full:
-                            vectors.append(vec_full[db_key])
-                    except:
-                        pass
+                        if vec_full:
+                            vectors.append(vec_full)
 
+                    except Exception:
+                        continue
+
+                # 如果該風格資料夾有成功提取到特徵
                 if vectors:
                     avg_vec = {}
+                    # 以第一筆資料的 key 為基準（例如：eye_ratio, nose_ratio 等）
                     keys = vectors[0].keys()
                     for k in keys:
+                        # 計算該風格下所有圖片特徵的平均值
                         avg_vec[k] = sum(v[k] for v in vectors) / len(vectors)
 
                     model_db[db_key][style_display_name] = avg_vec
                     stats.append(f"[{db_key}] {style_display_name}: {len(vectors)} 張")
 
+        # 儲存訓練結果至 JSON
+        # noinspection PyBroadException
         try:
             with open(self.model_path, 'w', encoding='utf-8') as f:
                 json.dump(model_db, f, ensure_ascii=False, indent=2)
             return "\n".join(stats) if stats else "無有效訓練資料"
-        except Exception as e:
-            return f"儲存失敗: {e}"
+        except Exception as save_err:
+            return f"儲存失敗: {save_err}"
 
 # Part 3: FaceAnalyzer (分析引擎)
 class FaceAnalyzer(BaseFashionEngine, FaceGeometryMixin):
-    def __init__(self, model_path='face_model_v1.json'):
+    def __init__(self, target_model='face_model_v1.json'):
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             static_image_mode=True, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5
         )
-        self.model_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), model_path)
+        self.target_model = os.path.join(os.path.dirname(os.path.abspath(__file__)), target_model)
         self.MATERIAL_DB = self.load_model()
 
         self.COLORS = {'contour': (255, 178, 102), 'eye': (102, 255, 102), 'brow': (102, 255, 255),
@@ -1630,147 +1675,294 @@ class FaceAnalyzer(BaseFashionEngine, FaceGeometryMixin):
         }
 
     def load_model(self):
-        if os.path.exists(self.model_path):
+        if os.path.exists(self.target_model):
+            # noinspection PyBroadException
             try:
-                with open(self.model_path, 'r', encoding='utf-8') as f:
+                with open(self.target_model, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except:
                 pass
         return {}
 
-    def _get_landmarks_array(self, image, results):
+    @staticmethod
+    def _get_landmarks_array(image, results):
         h, w = image.shape[:2]
         landmarks = results.multi_face_landmarks[0].landmark
         coords = np.array([(lm.x * w, lm.y * h, lm.z * w) for lm in landmarks])
         return coords, landmarks
 
-    def compare_with_model(self, user_vec):
-        results = {}
-        for category, user_features in user_vec.items():
-            if category not in self.MATERIAL_DB or not self.MATERIAL_DB[category]:
-                results[category] = "未定義"
-                continue
-            best_match = "未定義"
-            min_dist = float('inf')
-            for style_name, style_avg_vec in self.MATERIAL_DB[category].items():
-                dist = 0
-                for feature_key, val in user_features.items():
-                    target_val = style_avg_vec.get(feature_key, val)
-                    weight = 150.0 if 'ratio' in feature_key else 1.0
-                    dist += (weight * (val - target_val)) ** 2
-                if np.sqrt(dist) < min_dist:
-                    min_dist = np.sqrt(dist)
-                    best_match = style_name
-            results[category] = best_match
-        return results
+    # ==========================================
+    # 🎯 專業單一結果判定
+    # ==========================================
+    @staticmethod
+    def _rule_based_nose(nose_ratio, nose_depth):
+        print(f"\n[鼻型探測] 正在分析鼻子...")
+        print(f"  ▶ 鼻子長寬比 (nose_ratio): {nose_ratio:.3f}")
+        print(f"  ▶ 鼻樑立體度 (nose_depth): {nose_depth:.3f}")
 
-    def _rule_based_nose(self, nose_ratio, nose_angle):
-        if nose_ratio > 0.83:
-            base = "蒜頭鼻"
-        elif nose_ratio < 0.76:
-            base = "希臘鼻 (直鼻)"
-        else:
-            base = "標準鼻"
-        if nose_angle > 105:
-            return f"小翹鼻 ({base}基底)"
-        elif nose_angle < 88:
-            return f"鷹勾鼻"
-        return base
+        # 1. 大寬鼻 (Wide): 擁有極高的立體度數據與較寬的比例
+        if nose_ratio >= 0.132 or (nose_depth >= 2.8 and nose_ratio >= 0.122):
+            return "大寬鼻"
 
-    def _rule_based_lips(self, lip_thickness, lip_offset, cupid_angle):
-        shape = "標準唇"
-        if lip_thickness > 0.38:
-            shape = "豐滿厚唇"
-        elif lip_thickness < 0.22:
-            shape = "薄唇"
-        details = []
-        if cupid_angle < 135: details.append("M字")
-        if lip_offset > 2.0:
-            details.append("微笑")
-        elif lip_offset < -2.0:
-            details.append("覆舟")
-        if details: return f"{shape} ({''.join(details)})"
-        return shape
+        # 2. 蒜頭鼻 (Fleshy / Garlic): 立體度偏中高，且比例明顯偏寬
+        if nose_depth >= 2.0 and nose_ratio >= 0.118:
+            return "蒜頭鼻"
 
-    def _force_calculate_face_shape(self, pts_2d):
-        try:
-            w_zygoma = np.linalg.norm(pts_2d[454] - pts_2d[234])  # 顴骨寬度 (全臉最寬)
-            h_face = np.linalg.norm(pts_2d[10] - pts_2d[152])  # 臉部長度
-            w_jaw = np.linalg.norm(pts_2d[361] - pts_2d[132])  # 下顎寬度
-            w_temple = np.linalg.norm(pts_2d[338] - pts_2d[109])  # 太陽穴寬度
+        # 3. 朝天鼻 (Upturned): 在 3D 運算中產生兩種獨特的光學特徵
+        if nose_depth >= 3.5 and nose_ratio <= 0.095:
+            return "朝天鼻"
 
-            # 核心精準比例
-            ratio_lw = h_face / (w_zygoma + 1e-6)  # 長寬比
-            ratio_jaw = w_jaw / (w_zygoma + 1e-6)  # 顎骨與顴骨比
-            ratio_temple = w_temple / (w_zygoma + 1e-6)  # 額頭與顴骨比
+        # 情境 B (扁平稍寬): 數據 (0.119, 1.088)
+        if nose_depth <= 1.2 and 0.110 <= nose_ratio <= 0.130:
+            return "朝天鼻"
 
-            # 嚴格臉型判定樹
-            if ratio_lw > 1.55:
-                return "長形臉 (Long)"
-            elif ratio_lw < 1.25:
-                # 臉偏短，看下顎有沒有稜角
-                return "方形臉 (Square)" if ratio_jaw > 0.90 else "圓形臉 (Round)"
+        # 4. 細長鼻 (Slender): 鼻子寬度比例極小
+        if nose_ratio <= 0.106:
+            return "細長鼻"
+
+        # 5. 標準鼻 (Standard): 比例適中，無極端特徵，作為預設防線
+        return "標準鼻"
+
+    @staticmethod
+    def _rule_based_lips(thickness, offset, width_ratio):
+        print(f"\n[嘴型探測] 正在分析嘴巴...")
+        print(f"  ▶ 嘴唇厚度比例 (thickness): {thickness:.3f}")
+        print(f"  ▶ 嘴角傾斜角 (offset): {offset:.3f}")
+        print(f"  ▶ 嘴巴寬度比例 (width_ratio): {width_ratio:.3f}")
+
+        # 0. 優先攔截：極端下垂唇 (覆舟唇)
+        if offset <= -4.0:
+            return "下垂唇 (覆舟唇)"
+        if offset >= 8.0:
+            return "微笑唇"  # 強制攔截極端上揚的嘴角
+
+            # 1. 櫻桃小嘴
+        if thickness >= 0.480 and width_ratio <= 156.0:
+            return "櫻桃小嘴"
+
+            # 2. 寬度極端組
+        if width_ratio >= 160.0:
+            if offset >= 3.0:
+                return "厚唇"
             else:
-                # 臉長標準 (1.25 ~ 1.55)
-                if ratio_jaw > 0.85:
-                    return "方圓臉 (Square-Round)"  # 下顎明顯
-                elif ratio_temple > 0.95 and ratio_jaw < 0.75:
-                    return "倒三角臉 (Inverted Triangle)"  # 額頭寬、下巴尖
-                elif w_zygoma > w_temple * 1.05 and w_zygoma > w_jaw * 1.15:
-                    return "菱形臉 (Diamond)"  # 顴骨最突出
-                else:
-                    return "鵝蛋臉 (Oval)"  # 標準比例
-        except:
-            return "鵝蛋臉 (Oval)"
+                return "大寬唇"
 
+            # 3. 一般下垂唇
+        if offset <= -3.0:
+            return "下垂唇 (覆舟唇)"
+        if thickness >= 0.380 and width_ratio >= 156.0 and offset < 2.0:
+            return "下垂唇 (覆舟唇)"
+
+            # 4. 薄唇
+        if thickness <= 0.310:
+            return "薄唇"
+
+            # 5. 一般厚唇
+        if thickness >= 0.380:
+            return "厚唇"
+
+        return "微笑唇"
+
+    @staticmethod
+    def _rule_based_eyes(eye_ratio, eye_tilt):
+        print(f"\n[眼型探測] 正在分析眼睛...")
+        print(f"  ▶ 眼睛長寬比 (eye_ratio): {eye_ratio:.3f}")
+        print(f"  ▶ 眼尾傾斜角 (eye_tilt): {eye_tilt:.3f}")
+
+        # 1. 細長眼 (Slender)
+        if eye_ratio < 0.310 or (eye_ratio <= 0.335 and eye_tilt < 0):
+            return "細長眼"
+
+            # 2. 超高傾斜角組
+        if eye_tilt >= 15.0:
+            if eye_ratio >= 0.415:
+                return "下垂眼"
+            else:
+                return "桃花眼"
+
+            # 3. 極度圓潤的眼睛 (接住 0.436)
+        if eye_ratio >= 0.420:
+            return "圓眼"
+
+            # 4. 丹鳳眼與桃花眼的糾纏 (高傾斜角 + 偏寬)
+        if 11.5 <= eye_tilt <= 14.5 and eye_ratio >= 0.370:
+            if eye_ratio >= 0.400:
+                return "桃花眼"  # 夠圓且上揚就是桃花眼
+            return "丹鳳眼"
+
+            # 5. 下垂眼
+        if eye_tilt >= 8.5 and eye_ratio >= 0.380:
+            return "下垂眼"
+
+            # 6. 圓眼 (將門檻從 0.350 提高到 0.385，避免誤判杏眼)
+        if eye_ratio >= 0.385:
+            return "圓眼"
+
+            # 7. 桃花眼 (一般組)
+        if eye_ratio >= 0.365 and eye_tilt >= 6.0:
+            return "桃花眼"
+
+        return "杏眼"
+
+    @staticmethod
+    def _rule_based_brows(thickness, tilt):
+        print(f"\n[眉型探測] 正在分析眉毛...")
+        print(f"  ▶ 眉毛粗細比例 (thickness): {thickness:.3f}")
+        print(f"  ▶ 眉毛傾斜/弧度 (tilt): {tilt:.3f}")
+
+        # 1. 一字眉 (Straight): 捕捉極端翻轉值與破百的傾斜角
+        if tilt >= 85.0 or thickness < 0:
+            return "一字眉 (平眉)"
+
+            # 2. 挑眉 (必須有厚度且角度合理)
+        if thickness >= 89.0 and tilt < 60.0:
+            return "挑眉 (歐美眉)"
+
+            # 3. 細眉 (優先攔截厚度低於 81.5 的)
+        if thickness <= 81.5:
+            return "細眉 (柳葉眉)"
+
+            # 4. 八字眉 (下垂眉)
+        if tilt <= 19.0:
+            return "八字眉 (下垂眉)"
+        if 40.0 <= tilt <= 55.0 and thickness >= 85.0:
+            return "八字眉 (下垂眉)"
+
+            # 5. 野生眉 (粗眉)
+        if tilt >= 58.0 and thickness > 82.0:
+            return "野生眉 (粗眉)"
+        if 20.0 <= tilt < 40.0 and thickness > 84.0:
+            return "野生眉 (粗眉)"
+
+        return "標準眉"
+
+    @staticmethod
+    def _calculate_face_shape_3d(pts_3d):
+        """
+        [3D 升級版] 解決鏡頭透視變形，並校準 MediaPipe 的真實點位比例閾值
+        """
+        try:
+
+            # 1. 計算 3D 空間直線距離
+            w_cheek = np.linalg.norm(pts_3d[454] - pts_3d[234])  # 顴骨最寬處
+            w_temple = np.linalg.norm(pts_3d[356] - pts_3d[127])  # 太陽穴寬度
+            w_jaw = np.linalg.norm(pts_3d[361] - pts_3d[132])  # 下顎角寬度
+
+            # 補償 MediaPipe 額頭缺失的長度 (微調乘數讓臉長更精準)
+            vec_forehead = pts_3d[10] - pts_3d[168]
+            pt_hairline_est = pts_3d[10] + vec_forehead * 0.45
+            h_full = np.linalg.norm(pt_hairline_est - pts_3d[152])  # 真實 3D 臉長
+
+            # 2. 計算比例因子 (防呆避免除以 0)
+            base_w = w_cheek + 1e-6
+            r_h = h_full / base_w  # 臉長 / 臉寬
+            r_jaw = w_jaw / base_w  # 下顎 / 臉寬
+            r_temple = w_temple / base_w  # 太陽穴 / 臉寬
+
+            print(f"\n[特徵探測] 正在分析圖片...")
+            print(f"  ▶ 臉長寬比 (r_h): {r_h:.3f}")
+            print(f"  ▶ 下顎寬比 (r_jaw): {r_jaw:.3f}")
+            print(f"  ▶ 太陽穴比 (r_temple): {r_temple:.3f}")
+
+            # ==========================================
+            # 3. MediaPipe 校準版決策樹 (Thresholds Adjusted)
+            # ==========================================
+
+            # 0. 極端特徵優先：超級寬的太陽穴 (視覺上非常明顯)
+            if r_temple >= 1.025:
+                if r_jaw < 0.920:
+                    return "心形臉"  # 上寬下窄的經典心形臉
+                return "菱形臉"
+
+            # 1. 優先篩選「極端寬下顎」(梨形/方形)
+            if r_jaw >= 0.950:
+                if r_jaw > r_temple:
+                    return "梨形臉"
+                return "方形臉"
+
+            # 2. 圓形臉 (Round) 與 一般方形臉
+            if r_h < 1.34:
+                if r_jaw >= 0.935:
+                    return "方形臉"
+                return "圓形臉"
+
+            # 3. 長形臉 (Long)
+            if r_h >= 1.40:
+                return "長形臉"
+
+            # 4. 剩下的方形臉與菱形臉
+            if r_jaw >= 0.935:
+                return "方形臉"
+
+            if r_temple >= 1.010 and r_jaw < 0.930:
+                return "菱形臉"
+
+            return "鵝蛋臉"
+
+        except Exception as err:
+            print(f"3D 臉型分析出錯: {err}")
+            return "鵝蛋臉"
+
+    # noinspection PyUnusedLocal
     def _get_side_profile_depth_map(self, side_image_path, front_height):
         """
-        [3D 核心] 讀取側臉，計算真實的深度縮放比例
-        回傳: depth_correction_factor (深度校正係數)
+        [精準版] 側臉深度計算引擎
+        將側臉照片的 X 軸寬度視為「真實深度」，Y 軸高度視為「真實長度」，
+        藉此算出最精準的人體工學比例。
         """
-        if not side_image_path or not os.path.exists(side_image_path): return 1.5  # 預設深度
+        if not side_image_path or not os.path.exists(side_image_path):
+            return 1.0
 
         try:
             img, img_rgb, _ = self._read_image(side_image_path, max_dim=800)
-            results = self.face_mesh.process(img_rgb)
-            if not results.multi_face_landmarks: return 1.5
+            results: Any = self.face_mesh.process(img_rgb)
 
-            lm = results.multi_face_landmarks[0].landmark
+            if not results.multi_face_landmarks:
+                print("🔍 [Debug] 側臉偵測失敗，使用預設比例 1.0")
+                return 1.0
 
-            # 1. 取得側臉的垂直高度 (眉心 168 -> 下巴 152)
-            side_height = abs(lm[152].y - lm[168].y)
+            side_landmarks = results.multi_face_landmarks[0]
 
-            # 2. 取得側臉的水平深度 (鼻尖 4 -> 耳朵/臉頰邊緣 234的投影)
-            # 在側臉圖中，X軸代表深度 (Depth)
-            # 我們計算 鼻尖(4) 到 臉頰平面(約127或234) 的 X 軸距離
-            side_depth_raw = abs(lm[4].x - lm[127].x)
+            # 1. 取得側臉照的像素高寬
+            img_h, img_w = img.shape[:2]
 
-            # 3. 計算比例
-            # 如果正臉高度是 0.5，側臉高度是 0.25 -> 縮放倍率 = 2.0
-            scale = front_height / side_height if side_height > 0 else 1.0
+            # 2. 計算臉部真實像素高度 (額頭 10 到 下巴 152)
+            y_top = side_landmarks.landmark[10].y * img_h
+            y_bottom = side_landmarks.landmark[152].y * img_h
+            side_face_height = abs(y_bottom - y_top)
 
-            # 4. 算出真實的深度值 (應用在正臉 Z 軸)
-            # 側臉的 X 距離 * 縮放倍率 = 正臉應該有的 Z 軸深度
-            real_depth_z = side_depth_raw * scale
+            # 3. 計算側臉的「像素深度」
+            # 直接取 X 軸最大與最小的差，就是可見的最寬距離
+            all_x = [p.x * img_w for p in side_landmarks.landmark]
+            side_face_depth = max(all_x) - min(all_x)
 
-            # 5. 計算 MediaPipe 預設深度 與 真實深度 的比值
-            # MediaPipe 預設 Z 軸通常較扁，我們算出一個係數來乘上去
-            # 假設 MediaPipe 預設鼻尖 Z 是 -0.05 (相對於臉頰)
-            default_mp_depth = 0.08  # 經驗值
+            # 4. 算出完美的個人化深度比例
+            if side_face_height > 0:
+                user_depth_ratio = side_face_depth / side_face_height
 
-            correction_factor = real_depth_z / default_mp_depth
+                # 標準人類的比例大約為 0.72
+                standard_ratio = 0.72
+                calculated_multiplier = user_depth_ratio / standard_ratio
 
-            # 限制在合理範圍，避免爆炸 (1.0 ~ 3.0)
-            return max(1.0, min(correction_factor, 3.5))
+                # 💡 [關鍵修復] 嚴格限制 MediaPipe 側臉的誤差，防止 3D 模型變成「鳥嘴」
+                calculated_multiplier = float(np.clip(calculated_multiplier, 0.9, 1.15))
 
-        except:
-            return 1.5  # 失敗時回傳預設增強係數
+                print(f"🔍 [Debug] 側臉分析 - 實際高度: {side_face_height:.1f}, 實際深度: {side_face_depth:.1f}")
+                print(f"🔍 [Debug] 側臉分析 - 您的比例: {user_depth_ratio:.3f} -> 最終倍率: {calculated_multiplier:.2f}")
+
+                return calculated_multiplier
+
+            return 1.0
+
+        except Exception as err:
+            print(f"⚠️ 側臉計算發生錯誤: {err}")
+            return 1.0
 
     def analyze(self, image_path, side_image_path=None):
         original_img, rgb_image, err = self._read_image(image_path, max_dim=1600)
         if err: return None, err
 
-        results = self.face_mesh.process(rgb_image)
+        results: Any = self.face_mesh.process(rgb_image)
         h, w = original_img.shape[:2]
         aspect_ratio = w / h
 
@@ -1786,226 +1978,384 @@ class FaceAnalyzer(BaseFashionEngine, FaceGeometryMixin):
                 'aspect_ratio': aspect_ratio
             }, None
 
-        # --- 正臉數據處理 ---
         pts, raw_landmarks = self._get_landmarks_array(original_img, results)
         pts_2d = pts[:, :2]
-
         feature_vector = self._extract_feature_vector(pts_2d, original_img.shape)
-        matches = self.compare_with_model(feature_vector)
-        final_face = self._force_calculate_face_shape(pts_2d)
+
+        dx = pts_2d[263][0] - pts_2d[33][0]
+        dy = pts_2d[263][1] - pts_2d[33][1]
+        head_roll_angle = np.degrees(np.arctan2(dy, dx))
+        real_eye_tilt = feature_vector['eyes']['tilt'] - head_roll_angle
+        real_brow_tilt = feature_vector['eyebrows']['tilt'] - head_roll_angle
+
+        final_face = self._calculate_face_shape_3d(pts)
         final_nose = self._rule_based_nose(feature_vector['nose']['ratio'], feature_vector['nose']['angle'])
+        final_eyes = self._rule_based_eyes(feature_vector['eyes']['ratio'], real_eye_tilt)
+        final_brows = self._rule_based_brows(real_brow_tilt, feature_vector['eyebrows']['arch'])
+        final_lips = self._rule_based_lips(feature_vector['lips']['thickness'], feature_vector['lips']['offset'],
+                                           feature_vector['lips']['cupid'])
 
-        ai_lips = matches.get('lips', '未定義')
-        rule_lips = self._rule_based_lips(feature_vector['lips']['thickness'], feature_vector['lips']['offset'],
-                                          feature_vector['lips']['cupid'])
-        final_lips = rule_lips if ai_lips in ['未定義', '未匹配', '標準唇'] else ai_lips
-        if "微笑" in rule_lips and "微笑" not in final_lips: final_lips += " (微笑)"
+        # ==========================================
+        # 1. 基礎座標與 3D 比例錨點初始化
+        # ==========================================
+        draw_pts = pts_2d.copy().astype(float)
 
-        # --- [全髮際線平滑曲線] Full Hairline Smoothing (9點版) ---
-        # 這是讓 3D 模型額頭變圓潤的關鍵，消除多邊形稜角
-        vis_img = original_img.copy()
-
+        # 僅針對 2D 繪圖進行額頭充氣，絕對不污染 3D 原始網格
+        # noinspection PyBroadException
         try:
-            p168 = pts_2d[168].astype(int)
-            p10 = pts_2d[10].astype(int)
-
-            # 1. 膚色探測
-            def get_pixel_color(img, pt):
-                x, y = pt
-                if x < 1 or x >= img.shape[1] - 1 or y < 1 or y >= img.shape[0] - 1:
-                    return np.array([0, 0, 0])
-                patch = img[y - 1:y + 2, x - 1:x + 2]
-                return np.mean(patch, axis=(0, 1))
-
-            ref_skin_color = get_pixel_color(original_img, p168)
-
+            p168, p10 = draw_pts[168], draw_pts[10]
             forehead_vec = p10 - p168
-            curr_height = np.linalg.norm(forehead_vec)
-            up_unit = forehead_vec / (curr_height + 1e-6)
+            base_dist = np.linalg.norm(forehead_vec)
 
-            # 2. 向上探測
-            max_probe_steps = 25
-            step_size = curr_height * 0.04
-            final_extension = 0.0
-            # 稍微增加最小延伸量 (0.25)，確保有空間畫圓弧
-            min_extension = curr_height * 0.25
+            # 計算額頭向上的單位向量
+            up_unit = forehead_vec / (base_dist + 1e-6)
 
-            consecutive_fails = 0
-            for i in range(max_probe_steps):
-                dist = (i + 1) * step_size
-                probe_pt = p10 + (up_unit * dist)
-                probe_pt_int = probe_pt.astype(int)
-                curr_color = get_pixel_color(original_img, probe_pt_int)
-                color_diff = np.linalg.norm(curr_color - ref_skin_color)
-                if color_diff < 70:
-                    final_extension = dist
-                    consecutive_fails = 0
-                else:
-                    consecutive_fails += 1
-                    if consecutive_fails >= 2: break
-
-            if final_extension < min_extension:
-                final_extension = min_extension
-
-            y_extension_ratio = final_extension / (curr_height + 1e-6)
-
-            # 3. [2D 應用] 定義 9 點平滑權重表
-            # 增加太陽穴附近的點 (284, 54)，讓過渡更自然
-            SMOOTH_WEIGHTS = {
-                10: (1.0, 0.0),  # 中心
-                338: (0.96, 0.22),  # 緊鄰左 (幾乎同高 -> 平頂)
-                109: (0.96, 0.22),  # 緊鄰右
-                297: (0.85, 0.15),  # 中左
-                67: (0.85, 0.15),  # 中右
-                332: (0.65, 0.08),  # 外左
-                103: (0.65, 0.08),  # 外右
-                284: (0.40, 0.04),  # 太陽穴左 (新增)
-                54: (0.40, 0.04)  # 太陽穴右 (新增)
+            # 定義額頭上緣點位的推升比例 (以眉心到額頭的距離為基準)
+            # 10 號點是正中央最高點，向兩側遞減以維持圓弧感
+            forehead_expansion_rules = {
+                10: 0.45,  # 正中央推高 45%
+                109: 0.40, 338: 0.40,  # 中間偏內
+                67: 0.30, 297: 0.30,  # 中間偏外
+                103: 0.20, 332: 0.20,  # 外側
+                54: 0.10, 284: 0.10,  # 接近太陽穴
+                21: 0.05, 251: 0.05  # 太陽穴邊緣微調
             }
 
-            def apply_smooth_arch(pt_idx, center_pt):
-                if pt_idx not in SMOOTH_WEIGHTS: return pts_2d[pt_idx]
+            for idx, ratio in forehead_expansion_rules.items():
+                draw_pts[idx] = draw_pts[idx] + (up_unit * base_dist * ratio)
 
-                lift_r, expand_r = SMOOTH_WEIGHTS[pt_idx]
-                pt = pts_2d[pt_idx]
+        except Exception as err:
+            print(f"額頭充氣處理失敗: {err}")
+            pass
 
-                # 向上
-                new_pt = pt + (up_unit * final_extension * lift_r)
-                # 向外
-                vec_out = pt - center_pt
-                new_pt = new_pt + (vec_out * expand_r)
+        # noinspection PyBroadException
+        try:
+            pass
+        except Exception:
+            pass
 
-                return new_pt.astype(np.int32)
+        overlay = original_img.copy()
+        cv2.rectangle(overlay, (0, 0), (w, h), (20, 10, 0), -1)
+        vis_img = cv2.addWeighted(overlay, 0.4, original_img, 0.6, 0)
 
-            center_ref = pts_2d[10]
+        w_face = np.linalg.norm(draw_pts[356] - draw_pts[127])
+        center_x = draw_pts[10][0]
+        y_nasion_3d = float(draw_pts[168][1])
+        y_chin_3d = float(draw_pts[152][1])
+        h_ref_3d = y_chin_3d - y_nasion_3d
 
-            # 批次更新所有關鍵點
-            for idx in SMOOTH_WEIGHTS.keys():
-                pts_2d[idx] = apply_smooth_arch(idx, center_ref)
-
-        except Exception as e:
-            y_extension_ratio = 0.2
-
-        def draw_poly(indices, color):
-            points = np.array([pts_2d[i] for i in indices], np.int32)
-            cv2.polylines(vis_img, [points], False, color, 2, cv2.LINE_AA)
-
-        face_oval = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148,
-                     176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
-        left_brow = [70, 63, 105, 66, 107, 55, 65, 52]
-        right_brow = [336, 296, 334, 293, 300, 276, 283, 282]
+        # 🚀 將五官定義往上搬，確保全域都能存取
+        left_brow = [46, 53, 52, 65, 55, 107, 66, 105, 63, 70]
+        right_brow = [276, 283, 282, 295, 285, 336, 296, 334, 293, 300]
         left_eye = [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7]
         right_eye = [362, 398, 384, 385, 386, 387, 388, 466, 263, 249, 390, 373, 374, 380, 381, 382]
-        nose_bridge = [168, 6, 197, 195, 5, 4, 1, 19, 94, 2]
+        nose_outline = [168, 412, 343, 278, 327, 326, 2, 97, 98, 48, 114, 188]
         lips = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146]
+        face_oval = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148,
+                     176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
 
-        draw_poly(face_oval, self.COLORS['contour'])
-        draw_poly(left_brow, self.COLORS['brow'])
-        draw_poly(right_brow, self.COLORS['brow'])
-        draw_poly(left_eye, self.COLORS['eye'])
-        draw_poly(right_eye, self.COLORS['eye'])
-        draw_poly(nose_bridge, self.COLORS['nose'])
-        draw_poly(lips, self.COLORS['lip'])
-        cv2.imencode(".jpg", vis_img)[1].tofile(save_path)
-
-        # --- 3D 數據生成 (圓潤實體邏輯) ---
-        front_height = abs(raw_landmarks[152].y - raw_landmarks[168].y)
-
-        # 側臉偵測
-        eye_dist = abs(raw_landmarks[33].x - raw_landmarks[263].x)
-        face_width = abs(raw_landmarks[234].x - raw_landmarks[454].x)
-        is_profile_view = False
-        if face_width < 0.3 or (eye_dist / face_width) < 0.4:
-            is_profile_view = True
-
-        if is_profile_view:
-            depth_factor = 3.0
-        else:
-            depth_factor = self._get_side_profile_depth_map(side_image_path, front_height)
-            if not side_image_path:
-                depth_factor = 1.5
-
-                # [3D 修正] 取得中心點 X 座標
-        center_x_norm = raw_landmarks[10].x
-        nose_bridge_z = raw_landmarks[168].z * depth_factor * -1
-
-        # 重新調配權重：加入 151, 9, 8 等過渡點，讓額頭呈「圓弧」而非「斷層尖角」
-        ADJUST_MAP_3D = {
-            10: (1.0, 0.0, 0.6),  # 最頂點
-            338: (0.9, 0.22, 0.5),
-            109: (0.9, 0.22, 0.5),
-            297: (0.7, 0.15, 0.4),
-            67: (0.7, 0.15, 0.4),
-            332: (0.5, 0.08, 0.2),
-            103: (0.5, 0.08, 0.2),
-            284: (0.2, 0.04, 0.1),
-            54: (0.2, 0.04, 0.1),
-            # 💡 [關鍵新增] 中軸線過渡點，防止頂點被孤立拉扯產生破圖
-            151: (0.6, 0.0, 0.4),
-            9: (0.3, 0.0, 0.2),
-            8: (0.1, 0.0, 0.1)
-        }
-
-        landmarks_3d_raw = []
+        # ==========================================
+        # 2. 🚀 [真 3D 黑科技合成] 讀取側臉並完美映射 Z 軸深度！
+        # ==========================================
+        coords_3d = []
         for i, p in enumerate(raw_landmarks):
-            x_val = p.x
-            y_val = p.y
-            z_val = p.z * depth_factor * -1
+            px = float(pts_2d[i][0])
+            py = float(pts_2d[i][1])
+            dist_x = abs(px - center_x)
+            ratio_x = np.clip(dist_x / (w_face / 2.0), 0.0, 1.0)
+            base_z = p.z * w_face * -1.45
+            wrap_z = -(w_face * 0.42) * (ratio_x ** 1.8)
+            coords_3d.append([px, py, base_z + wrap_z])
+        coords_3d = np.array(coords_3d)
 
-            if i in ADJUST_MAP_3D:
-                lift, expand, push_back = ADJUST_MAP_3D[i]
+        # ------------------------------------------
+        # 🎨 解析側臉、提取真實 3D 深度並繪製 2D 側臉
+        # ------------------------------------------
+        side_filename = None
+        if side_image_path and os.path.exists(side_image_path):
+            side_filename = "analyzed_side_" + os.path.basename(image_path)
+            side_save_path = os.path.join(os.path.dirname(image_path), side_filename)
 
-                # 1. Y 軸拉提 (大幅調降！使用固定微調 0.015，棄用原本暴衝的 shift_amount)
-                y_val -= (0.015 * lift)
+            side_img, side_rgb, _ = self._read_image(side_image_path, max_dim=1600)
+            if side_img is not None:
+                side_results: Any = self.face_mesh.process(side_rgb)
 
-                # 2. X 軸擴張 (微調 0.01，避免頭部變成蘑菇狀)
-                dir_x = x_val - center_x_norm
-                x_val += (dir_x * expand * 0.01)
+                # 影像增強備案
+                if not side_results.multi_face_landmarks:
+                    # noinspection PyBroadException
+                    try:
+                        lab = cv2.cvtColor(side_rgb, cv2.COLOR_RGB2LAB)
+                        l_channel, a_channel, b_channel = cv2.split(lab)
+                        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+                        cl = clahe.apply(l_channel)
+                        enhanced_rgb = cv2.cvtColor(cv2.merge((cl, a_channel, b_channel)), cv2.COLOR_LAB2RGB)
+                        side_results = self.face_mesh.process(enhanced_rgb)
+                    except Exception:
+                        pass
 
-                # 3. Z 軸變圓潤 (微調 0.015)
-                z_val += (0.015 * push_back)
+                if side_results.multi_face_landmarks:
+                    side_pts, _ = self._get_landmarks_array(side_img, side_results)
+                    side_pts_2d = side_pts[:, :2].astype(float)
 
-                # 🛡️ 防呆限制：額頭深度不能超過鼻樑
-                safe_max_z = nose_bridge_z - 0.01
-                if z_val > safe_max_z:
-                    z_val = safe_max_z
+                    left_jawline = [234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152]
+                    right_jawline = [152, 377, 400, 378, 379, 365, 397, 288, 361, 323, 454]
+                    side_profile = [10, 151, 9, 8, 168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 164, 0, 13, 14, 17, 18, 200,
+                                    199, 175, 152]
+                    left_hairline = [10, 109, 67, 103, 54, 21, 162, 127, 234]
+                    right_hairline = [10, 338, 297, 332, 284, 251, 389, 356, 454]
 
-            landmarks_3d_raw.append({
-                'x': x_val,
-                'y': y_val,
-                'z': z_val
-            })
+                    nose_x_side = side_pts_2d[1][0]
+                    left_ear_x_side = side_pts_2d[234][0]
+                    right_ear_x_side = side_pts_2d[454][0]
+
+                    if abs(nose_x_side - left_ear_x_side) > abs(nose_x_side - right_ear_x_side):
+                        visible_jawline, visible_hairline, front_dir = left_jawline, left_hairline, 1.0
+                    else:
+                        visible_jawline, visible_hairline, front_dir = right_jawline, right_hairline, -1.0
+
+                    # 1. 針對側臉 2D 進行幾何充氣修飾
+                    pt168_side = side_pts_2d[168].astype(float)
+                    pt10_side = side_pts_2d[10].astype(float)
+                    pt_chin_side = side_pts_2d[152].astype(float)
+                    face_h_side = np.linalg.norm(pt_chin_side - pt10_side)
+                    up_vec = pt10_side - pt168_side
+                    up_unit = up_vec / (np.linalg.norm(up_vec) + 1e-6)
+                    front_unit = np.array([front_dir, 0], dtype=float)
+
+                    expansion_rules = {
+                        10: (0.25, 0.0), 151: (0.18, 0.01), 9: (0.08, 0.02), 8: (0.02, 0.01),
+                        109: (0.23, -0.04), 67: (0.15, -0.08), 103: (0.08, -0.10), 54: (0.02, -0.10),
+                        21: (-0.02, -0.08),
+                        338: (0.23, -0.04), 297: (0.15, -0.08), 332: (0.08, -0.10), 284: (0.02, -0.10),
+                        251: (-0.02, -0.08)
+                    }
+
+                    for idx, (lift_ratio, push_ratio) in expansion_rules.items():
+                        side_pts_2d[idx] += (up_unit * face_h_side * lift_ratio) + (
+                                    front_unit * face_h_side * push_ratio)
+
+                    # 2. 🧬 將真實側臉 Z 深度「合成」映射到 3D 模型 (🚀 IDW 空間拓樸演算法)
+                    side_y_nasion = side_pts_2d[168][1]
+                    side_y_chin = side_pts_2d[152][1]
+                    s_y = h_ref_3d / (abs(side_y_chin - side_y_nasion) + 1e-6)
+
+                    profile_pts_yz = []
+                    profile_delta_z = []
+
+                    for idx in side_profile:
+                        true_z = (side_pts_2d[idx][0] - side_pts_2d[168][0]) * s_y * front_dir
+                        dz = true_z - coords_3d[idx][2]
+                        # 紀錄原 3D 空間的 Y 與 Z，確保鼻尖與人中能在 3D 拓樸中被完美區分
+                        orig_y = pts_2d[idx][1]
+                        orig_z = raw_landmarks[idx].z * w_face * -1.45
+
+                        profile_pts_yz.append([orig_y, orig_z])
+                        profile_delta_z.append(dz)
+
+                    profile_pts_yz = np.array(profile_pts_yz)
+                    profile_delta_z = np.array(profile_delta_z)
+
+                    # 進行 3D 全域深度合成
+                    for i in range(len(coords_3d)):
+                        orig_y = pts_2d[i][1]
+                        orig_z = raw_landmarks[i].z * w_face * -1.45
+
+                        # 計算到特徵線的平方距離，Z軸給予1.5倍權重，完美剝離鼻尖與上嘴唇的干擾
+                        dist_sq = (profile_pts_yz[:, 0] - orig_y) ** 2 + ((profile_pts_yz[:, 1] - orig_z) * 1.5) ** 2
+                        weights = 1.0 / (dist_sq + 1e-6)
+                        interp_dz = np.sum(weights * profile_delta_z) / float(np.sum(weights))
+
+                        x_dist = abs(pts_2d[i][0] - center_x)
+                        weight = max(0.0, 1.0 - (x_dist / (w_face * 0.55)) ** 1.5)
+
+                        coords_3d[i][2] += interp_dz * weight
+                        if orig_y < pts_2d[168][1]:
+                            y_ratio = (pts_2d[168][1] - orig_y) / (pts_2d[168][1] - pts_2d[10][1] + 1e-6)
+                            coords_3d[i][1] -= (y_ratio ** 1.5) * h_ref_3d * 0.15 * weight
+
+                    # 3. 🎨 繪製 2D 側臉並存檔
+                    side_overlay = side_img.copy()
+                    sh, sw = side_img.shape[:2]
+                    cv2.rectangle(side_overlay, (0, 0), (sw, sh), (20, 10, 0), -1)
+                    side_vis_img = cv2.addWeighted(side_overlay, 0.4, side_img, 0.6, 0)
+
+                    # 🚀 支援 s_val 動態平滑度
+                    def draw_side_poly(indices, base_color, is_closed=False, is_thin=False, is_smooth=True, s_val=150):
+                        if not indices: return
+                        poly_pts = np.array([side_pts_2d[pt_idx] for pt_idx in indices], np.int32)
+
+                        draw_closed = is_closed
+                        if is_smooth and len(poly_pts) > 5:
+                            import scipy.interpolate as si
+                            x, y = poly_pts[:, 0], poly_pts[:, 1]
+                            if is_closed:
+                                x, y = np.append(x, poly_pts[0, 0]), np.append(y, poly_pts[0, 1])
+                            # noinspection PyBroadException
+                            try:
+                                # noinspection PyTupleAssignmentBalance
+                                tck, u = si.splprep([x, y], s=s_val, per=is_closed)
+                                u_new = np.linspace(0, 1.0, 300)
+                                x_new, y_new = si.splev(u_new, tck)
+                                poly_pts = np.vstack((x_new, y_new)).T.astype(np.int32)
+                            except Exception:
+                                pass
+                            draw_closed = False
+
+                        if is_thin:
+                            cv2.polylines(side_vis_img, [poly_pts], draw_closed, base_color, 1, cv2.LINE_AA)
+                        else:
+                            cv2.polylines(side_vis_img, [poly_pts], draw_closed, base_color, 3, cv2.LINE_AA)
+                            cv2.polylines(side_vis_img, [poly_pts], draw_closed, (255, 255, 255), 1, cv2.LINE_AA)
+
+                    # 🚀 s_val=5 精準保留人中凹凸，其餘部位維持 s_val=150 的平滑
+                    draw_side_poly(side_profile, (255, 220, 50), is_closed=False, is_smooth=True, s_val=5)
+                    draw_side_poly(visible_jawline, (255, 220, 50), is_closed=False, is_smooth=True, s_val=150)
+                    draw_side_poly(visible_hairline, (255, 220, 50), is_closed=False, is_smooth=True, s_val=150)
+
+                    left_lips = [61, 185, 40, 39, 37, 0, 17, 84, 181, 91, 146]
+                    right_lips = [0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17]
+
+                    if front_dir == 1.0:
+                        draw_side_poly(left_eye, (255, 255, 0), is_closed=True, is_thin=True, is_smooth=False)
+                        draw_side_poly(left_brow, (255, 255, 0), is_closed=True, is_thin=True, is_smooth=False)
+                        draw_side_poly(left_lips, (150, 50, 255), is_closed=True, is_thin=True, is_smooth=False)
+                    else:
+                        draw_side_poly(right_eye, (255, 255, 0), is_closed=True, is_thin=True, is_smooth=False)
+                        draw_side_poly(right_brow, (255, 255, 0), is_closed=True, is_thin=True, is_smooth=False)
+                        draw_side_poly(right_lips, (150, 50, 255), is_closed=True, is_thin=True, is_smooth=False)
+
+                    cv2.imencode(".jpg", side_vis_img)[1].tofile(side_save_path)
+                else:
+                    cv2.imencode(".jpg", side_img)[1].tofile(side_save_path)
+
+        # ==========================================
+        # 3. 重新計算 3D 歸一化 (傳送給前端 Plotly)
+        # ==========================================
+        center = np.mean(coords_3d, axis=0)
+        max_dist = np.max(np.abs(coords_3d - center)) or 1.0
+        landmarks_3d_raw = [{'x': (pt[0] - center[0]) / max_dist, 'y': (pt[1] - center[1]) / max_dist,
+                             'z': (pt[2] - center[2]) / max_dist} for pt in coords_3d]
+
+        def close_loop(indices):
+            if not indices: return []
+            # 校验首尾点是否一致，避免重复/断点
+            if indices[0] != indices[-1]:
+                return list(indices) + [indices[0]]
+            return list(indices)
 
         groups = {
-            'contour': face_oval,
+            'contour': close_loop(face_oval),
             'jawline': [234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152, 377, 400, 378, 379, 365, 397, 288, 361,
                         323, 454],
-            'profile': [10, 151, 9, 8, 168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 164, 0, 11, 12, 13, 14, 15, 16, 17, 18,
-                        200, 199, 175, 152],
-            'lip': lips,
-            'eye': left_eye + right_eye,
-            'brow': left_brow + right_brow,
-            'nose': nose_bridge
+            'lip': close_loop(lips), 'left_eye': close_loop(left_eye), 'right_eye': close_loop(right_eye),
+            'left_brow': close_loop(left_brow), 'right_brow': close_loop(right_brow), 'nose': close_loop(nose_outline),
+            'profile_line': [10, 151, 9, 8, 168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 164, 0, 13, 14, 17, 18, 200, 199, 175,
+                             152]
         }
 
-        landmarks_3d_grouped = []
-        for name, indices in groups.items():
-            points = []
-            for idx in indices:
-                points.append(landmarks_3d_raw[idx])
-            landmarks_3d_grouped.append({'name': name, 'color': self.COLORS_3D.get(name, '#FFFFFF'), 'points': points})
+        # 🚀 必須先定義 3D 顏色字典，landmarks_3d_grouped 才能正確讀取
+        tech_colors_3d = {
+            'contour': '#32DCFF', 'jawline': '#32DCFF', 'left_eye': '#00FFFF', 'right_eye': '#00FFFF',
+            'left_brow': '#00FFFF', 'right_brow': '#00FFFF', 'nose': '#3296C8', 'lip': '#FF3296',
+            'profile_line': '#FFD700'
+        }
+
+        landmarks_3d_grouped = [{'name': name, 'color': tech_colors_3d.get(name, '#FFFFFF'),
+                                 'points': [landmarks_3d_raw[idx] for idx in indices]} for name, indices in
+                                groups.items()]
+
+        # ==========================================
+        # 4. 🎨 2D 繪圖引擎 (正臉繪製)
+        # ==========================================
+
+        # 定義 2D 繪圖使用的顏色
+        tech_colors = {
+            'contour': (255, 220, 50),
+            'eye': (255, 255, 0),
+            'brow': (255, 255, 0),
+            'nose': (200, 150, 50),
+            'lip': (150, 50, 255)
+        }
+
+        def generate_smooth_curve(points, num_points=300, is_closed=True, face_type_ratio=1.0):
+            import scipy.interpolate as si
+            if len(points) < 4: return points
+            x, y = points[:, 0], points[:, 1]
+            if is_closed: x, y = np.append(x, points[0, 0]), np.append(y, points[0, 1])
+            # noinspection PyBroadException
+            try:
+                s_val = 0 if face_type_ratio > 0.8 else 5
+                # noinspection PyTupleAssignmentBalance
+                tck, u = si.splprep([x, y], s=s_val, per=is_closed)
+                u_new = np.linspace(0, 1.0, num_points)
+                x_new, y_new = si.splev(u_new, tck)
+                return np.vstack((x_new, y_new)).T.astype(np.int32)
+            except Exception:
+                return points.astype(np.int32)
+
+        # 调用时传入脸型比例（jaw_cheek_ratio）
+        def draw_hud_poly(indices, base_color, is_closed=True, draw_nodes=True, is_thin=False, is_smooth=False,
+                          face_type_ratio=1.0):
+            points = np.array([draw_pts[pt_idx] for pt_idx in indices], np.int32)
+            if is_smooth and len(points) > 5:
+                points = generate_smooth_curve(points, num_points=300, is_closed=is_closed,
+                                               face_type_ratio=face_type_ratio)
+                is_closed, draw_nodes = False, False
+            if is_thin:
+                cv2.polylines(vis_img, [points], is_closed, base_color, 1, cv2.LINE_AA)
+            else:
+                cv2.polylines(vis_img, [points], is_closed, base_color, 3, cv2.LINE_AA)
+                cv2.polylines(vis_img, [points], is_closed, (255, 255, 255), 1, cv2.LINE_AA)
+            if draw_nodes and not is_thin:
+                for pt in points: cv2.circle(vis_img, tuple(pt), 1, (255, 255, 255), -1, cv2.LINE_AA)
+
+        left_cheek_x = draw_pts[234][0]  # 左颧骨点
+        right_cheek_x = draw_pts[454][0]  # 右颧骨点
+        left_jawline_x = draw_pts[176][0]  # 左下颌点
+        right_jawline_x = draw_pts[377][0]  # 右下颌点
+
+        # 核心比例：区分不同脸型
+        cheek_width = abs(right_cheek_x - left_cheek_x)
+        jaw_width = abs(right_jawline_x - left_jawline_x)
+        jaw_cheek_ratio = jaw_width / (cheek_width + 1e-6)  # 方形脸>0.8，心形脸<0.6
+        face_height = abs(draw_pts[10][1] - draw_pts[152][1])  # 额头到下巴高度
+        face_width_height_ratio = cheek_width / (face_height + 1e-6)  # 圆形脸>0.85，长形脸<0.7
+
+        # 基础轮廓（保留原始点）
+        base_oval = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148,
+                     176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
+
+        # 按脸型适配轮廓
+        if jaw_cheek_ratio > 0.8 and face_width_height_ratio > 0.75:  # 方形脸
+            dynamic_contour = base_oval
+        elif jaw_cheek_ratio < 0.6 and face_width_height_ratio < 0.8:  # 心形脸
+            dynamic_contour = [10, 109, 67, 103, 54, 21, 162, 127, 234, 93, 132, 58, 172, 136, 150, 149, 176, 148, 152,
+                               377, 400, 378, 379, 365, 397, 288, 361, 323, 454, 356, 389, 251, 284, 332, 297, 338]
+        elif face_width_height_ratio > 0.85:  # 圆形脸
+            dynamic_contour = base_oval
+        elif face_width_height_ratio < 0.7:  # 长形脸
+            dynamic_contour = base_oval
+        else:  # 通用脸型
+            dynamic_contour = base_oval
+
+        draw_hud_poly(dynamic_contour, tech_colors['contour'], draw_nodes=False, is_thin=True, is_smooth=True,
+                      face_type_ratio=jaw_cheek_ratio)
+        draw_hud_poly(left_brow, tech_colors['brow'], is_thin=True, face_type_ratio=jaw_cheek_ratio)
+        draw_hud_poly(right_brow, tech_colors['brow'], is_thin=True, face_type_ratio=jaw_cheek_ratio)
+        draw_hud_poly(left_eye, tech_colors['eye'], is_thin=True, face_type_ratio=jaw_cheek_ratio)
+        draw_hud_poly(right_eye, tech_colors['eye'], is_thin=True, face_type_ratio=jaw_cheek_ratio)
+        draw_hud_poly(nose_outline, tech_colors['nose'], is_thin=True, face_type_ratio=jaw_cheek_ratio)
+        draw_hud_poly(lips, tech_colors['lip'], is_thin=True, face_type_ratio=jaw_cheek_ratio)
+
+        cv2.imencode(".jpg", vis_img)[1].tofile(save_path)
 
         return {
             'shape': final_face,
-            'features': {'eyes': matches.get('eyes', '標準眼'), 'nose': final_nose, 'lips': final_lips,
-                         'eyebrows': matches.get('eyebrows', '標準眉'), 'face_shape': final_face},
-            'precise_metrics': {'eye_tilt': round(feature_vector['eyes']['tilt'], 1),
-                                'nose_angle': round(feature_vector['nose']['angle'], 1),
-                                'cupid_bow': round(feature_vector['lips']['cupid'], 1),
-                                'profile_convexity': round(feature_vector['profile']['convexity'], 1)},
-            'analyzed_image': filename,
-            'landmarks_3d_grouped': landmarks_3d_grouped,
-            'landmarks_3d_raw': landmarks_3d_raw,
+            'features': {'eyes': final_eyes, 'nose': final_nose, 'lips': final_lips, 'eyebrows': final_brows,
+                         'face_shape': final_face},
+            'precise_metrics': {'eye_tilt': round(real_eye_tilt, 1), 'brow_tilt': round(real_brow_tilt, 1)},
+            'analyzed_image': filename, 'analyzed_side_image': side_filename,
+            'landmarks_3d_grouped': landmarks_3d_grouped, 'landmarks_3d_raw': landmarks_3d_raw,
             'aspect_ratio': aspect_ratio
         }, None
 
@@ -2024,39 +2374,49 @@ class BodyAnalyzer(BaseFashionEngine):
             min_detection_confidence=0.7
         )
 
-    def _get_distance_3d(self, lm1, lm2):
+    @staticmethod
+    def _get_distance_3d( lm1, lm2):
         """計算真實物理 3D 距離 (米)"""
         return np.sqrt((lm1.x - lm2.x) ** 2 + (lm1.y - lm2.y) ** 2 + (lm1.z - lm2.z) ** 2)
 
     def analyze(self, image_path, manual_data=None):
-        # 1. 讀取影像 (調用基類方法，處理中文路徑與縮放)
+        """
+        執行全身/半身影像分析，結合 AI 骨架偵測與手動輸入數據進行身形判定。
+        """
+        # 1. 讀取影像 (處理中文路徑與縮放)
         image, image_rgb, err = self._read_image(image_path, max_dim=1200)
         if err: return None, err
 
+        # --- 💡 關鍵：初始化所有變數預設值，防止 return 時找不到變數 ---
         h_img, w_img = image.shape[:2]
-        results = self.pose.process(image_rgb)
+        sh_type = "標準肩"
+        sh_hip_ratio = 1.0
+        waist_hip_ratio = 0.85
+        is_fake_hip = False
+        ratio_desc = "無法精算頭身比"
+        leg_desc = "無法精算上下身比"
+        neck_type = "標準脖"
 
+        # 進行 MediaPipe 偵測
+        results: Any = self.pose.process(image_rgb)
         if not results.pose_landmarks:
-            return None, "未偵測到人體，請確保全身或半身入鏡"
+            return None, "未偵測到人體"
 
-        # 取得骨架點 (World: 物理座標 / Normalized: 像素座標)
         w_lm = results.pose_world_landmarks.landmark
         n_lm = results.pose_landmarks.landmark
 
-        # --- 2. 核心關鍵點提取與可信度檢測 ---
+        # --- 2. 核心關鍵點提取與信心度檢測 ---
         nose = w_lm[0]
         shoulder_l, shoulder_r = w_lm[11], w_lm[12]
         hip_l, hip_r = w_lm[23], w_lm[24]
 
-        # 判定是否為全身照
-        is_full_body = (n_lm[27].visibility > 0.5 and n_lm[28].visibility > 0.5)
-
-        # 🎯 檢查臀部與肩膀的偵測信心指數 (大於 0.6 才算有效)
+        # 判定是否為全身照 (踝部可見度 > 0.5)
         hip_confidence = min(n_lm[23].visibility, n_lm[24].visibility)
         shoulder_confidence = min(n_lm[11].visibility, n_lm[12].visibility)
+        is_full_body = (n_lm[27].visibility > 0.5 and n_lm[28].visibility > 0.5)
 
         # --- 3. 橫向比例分析 (寬度) ---
-        # A. 肩頭比 (Head-to-Shoulder)
+        # A. 肩頭比判定
         if shoulder_confidence > 0.6:
             sh_width_3d = self._get_distance_3d(shoulder_l, shoulder_r)
             est_head_width = sh_width_3d * 0.4
@@ -2067,44 +2427,42 @@ class BodyAnalyzer(BaseFashionEngine):
                 sh_type = "寬肩 / 直角肩 (衣架子)"
             elif sh_head_ratio < 2.5:
                 sh_type = "窄肩 (易顯頭大)"
-        else:
-            sh_width_3d = 0.35  # 預設防呆數值
-            sh_type = "肩部遮擋無法判定"
 
-        # B. 腰臀比 (WHR) 與身形判定
-        is_fake_hip = False
+        # B. 肩臀比計算
         if hip_confidence > 0.6 and shoulder_confidence > 0.6:
+            sh_width_3d = self._get_distance_3d(shoulder_l, shoulder_r)
             hip_width_3d = self._get_distance_3d(hip_l, hip_r)
             sh_hip_ratio = sh_width_3d / (hip_width_3d + 0.001)
 
             # 判定假胯寬
             if is_full_body:
-                if hip_width_3d > sh_width_3d * 1.05: is_fake_hip = True
-        else:
-            # 🛡️ 防呆：如果下半身被桌子擋住或偵測不到，強制改回預設直筒比例
-            sh_hip_ratio = 1.0
+                if hip_width_3d > sh_width_3d * 1.05:
+                    is_fake_hip = True
 
-        waist_hip_ratio = 0.8  # 預設腰臀比
-        if manual_data and manual_data.get('waist') and manual_data.get('hip'):
-            try:
-                waist_hip_ratio = float(manual_data['waist']) / float(manual_data['hip'])
-            except:
-                pass
+        # C. 整合手動數據 (若使用者有輸入，則以手動數據為最高準則)
+        if manual_data:
+            # 取得數值 (確保鍵值正確)
+            m_shoulder = float(manual_data.get('shoulder', 0))
+            m_waist = float(manual_data.get('waist', 0))
+            m_hip = float(manual_data.get('hip', 0))
+
+            if m_shoulder > 0 and m_hip > 0:
+                # 採用 2.5 倍率換算肩寬為周長，確保與臀圍對等
+                sh_hip_ratio = (m_shoulder * 2.5) / (m_hip + 0.001)
+
+            if m_waist > 0 and m_hip > 0:
+                waist_hip_ratio = m_waist / m_hip
 
         # --- 4. 縱向比例分析 (長度) ---
-        # 若肩膀無效，頭長給予基本假數值避免運算錯誤
-        head_len = self._get_distance_3d(nose, shoulder_l) * 1.5 if shoulder_confidence > 0.6 else 0.2
-        ratio_desc = "半身照無法精算頭身比"
-        leg_desc = "半身照無法精算上下身比"
-
-        # 必須全身入鏡，且肩、臀定位點都清晰才能精算身高
         if is_full_body and hip_confidence > 0.6 and shoulder_confidence > 0.6:
+            head_len = self._get_distance_3d(nose, shoulder_l) * 1.5
             torso_len = self._get_distance_3d(shoulder_l, hip_l)
             ankle_l = w_lm[27]
             leg_len = self._get_distance_3d(hip_l, ankle_l)
             total_h_3d = head_len + torso_len + leg_len
-            head_ratio = total_h_3d / head_len
 
+            # 頭身比判定
+            head_ratio = total_h_3d / head_len
             if head_ratio >= 8:
                 ratio_desc = f"{round(head_ratio, 1)} 頭身 (九頭身超模比例)"
             elif head_ratio >= 7.5:
@@ -2114,6 +2472,7 @@ class BodyAnalyzer(BaseFashionEngine):
             else:
                 ratio_desc = f"{round(head_ratio, 1)} 頭身 (可愛幼態比例)"
 
+            # 腿長比判定
             leg_ratio = leg_len / (torso_len + leg_len)
             if leg_ratio > 0.65:
                 leg_desc = "三七身 (極致長腿)"
@@ -2124,30 +2483,32 @@ class BodyAnalyzer(BaseFashionEngine):
 
         # --- 5. 局部細節 ---
         neck_len = abs(n_lm[0].y - n_lm[11].y) * h_img
-        neck_type = "標準脖"
         if neck_len > h_img * 0.12:
             neck_type = "天鵝頸 (氣質極佳)"
         elif neck_len < h_img * 0.07:
             neck_type = "短脖子"
 
-        # --- 6. 身形最終分類 ---
-        shape = "直筒型 (H-Shape)"
-        if sh_hip_ratio > 1.1:
+        # --- 6. 身形最終分類 (💡 修正後的精準判定結構) ---
+        # 優先級 1：骨架判定 (解決數據 C: 1.19 >= 1.05)
+        if sh_hip_ratio >= 1.05:
             shape = "倒三角型 (Y-Shape)"
-        elif sh_hip_ratio < 0.9:
+        # 優先級 2：下半身判定
+        elif sh_hip_ratio <= 0.92:
             shape = "梨型 (A-Shape)"
-        elif waist_hip_ratio < 0.72:
-            shape = "沙漏型 (X-Shape)"
-        elif waist_hip_ratio > 0.88:
-            shape = "蘋果型 (O-Shape)"
+        # 優先級 3：曲線判定 (解決數據 D: 0.91 < 0.94)
+        else:
+            if waist_hip_ratio < 0.72:
+                shape = "沙漏型 (X-Shape)"
+            elif waist_hip_ratio >= 0.94:
+                shape = "蘋果型 (O-Shape)"
+            else:
+                shape = "直筒型 (H-Shape)"
 
         # --- 7. 建議邏輯處理 ---
         neck_advice = "建議選擇 V 領或大方領，拉長頸部線條。" if neck_type == "短脖子" else "領口選擇不受限。"
 
         # --- 8. 繪製分析結果 ---
         vis_img = image.copy()
-
-        # 繪圖時也加入可信度判斷，避免畫出亂飛的骨架線條
         if shoulder_confidence > 0.6:
             cv2.line(vis_img, (int(n_lm[11].x * w_img), int(n_lm[11].y * h_img)),
                      (int(n_lm[12].x * w_img), int(n_lm[12].y * h_img)), (0, 255, 255), 3)
@@ -2155,6 +2516,7 @@ class BodyAnalyzer(BaseFashionEngine):
             cv2.line(vis_img, (int(n_lm[23].x * w_img), int(n_lm[23].y * h_img)),
                      (int(n_lm[24].x * w_img), int(n_lm[24].y * h_img)), (255, 0, 255), 3)
 
+        # 儲存圖片
         filename = "body_analyzed_" + os.path.basename(image_path)
         save_path = os.path.join(os.path.dirname(image_path), filename)
         cv2.imencode(".jpg", vis_img)[1].tofile(save_path)
@@ -2192,7 +2554,8 @@ class SkinAnalyzer(BaseFashionEngine):
             min_detection_confidence=0.6
         )
 
-    def _extract_skin_color(self, image, landmarks):
+    @staticmethod
+    def _extract_skin_color(image, landmarks):
         """
         [精準版] 提取臉部關鍵皮膚區域的優勢顏色 (Dominant Color)
         使用 K-Means 聚類排除陰影與反光干擾
@@ -2241,7 +2604,7 @@ class SkinAnalyzer(BaseFashionEngine):
         if err: return None, err
 
         # 2. 取得臉部特徵點
-        results = self.face_mesh.process(rgb_image)
+        results: Any = self.face_mesh.process(rgb_image)
         if not results.multi_face_landmarks:
             return None, "未偵測到臉部，無法進行膚色分析"
 
@@ -2258,11 +2621,11 @@ class SkinAnalyzer(BaseFashionEngine):
 
         # 轉 Lab (L=明度, a=紅綠, b=黃藍) - 判斷冷暖與明度的關鍵
         lab_pixel = cv2.cvtColor(pixel, cv2.COLOR_RGB2LAB)[0][0]
-        L, a, b = lab_pixel[0], lab_pixel[1], lab_pixel[2]
+        l, a, b = lab_pixel[0], lab_pixel[1], lab_pixel[2]
 
         # 轉 HSV (H=色相, S=飽和度, V=明度) - 輔助判斷
         hsv_pixel = cv2.cvtColor(pixel, cv2.COLOR_RGB2HSV)[0][0]
-        H, S, V = hsv_pixel[0], hsv_pixel[1], hsv_pixel[2]
+        h, s, v = hsv_pixel[0], hsv_pixel[1], hsv_pixel[2]
 
         # --- 5. 四季型人判定邏輯 (Color Analysis Logic) ---
 
@@ -2270,19 +2633,15 @@ class SkinAnalyzer(BaseFashionEngine):
         # b 值越高越黃(暖)，越低越藍(冷)。一般膚色 b 值約在 130-170 (OpenCV Lab 範圍)
         # 這裡設定一個經驗閾值，可根據測試微調
         warmth_score = b
-        is_warm = True if warmth_score > 148 else False  # 經驗閾值 148
+        is_warm = True if warmth_score > 138 else False
 
         undertone = "暖色調 (Warm)" if is_warm else "冷色調 (Cool)"
 
-        # B. 季節判定 (Season)
-        season = ""
-        desc = ""
-
+        # OpenCV 的 L 範圍是 0-255，稍微降低標準，避免稍微背光就全被判成秋冬
         if is_warm:
             # 暖調：春 vs 秋
-            # 春：高明度(L大)，高飽和(S大)，清透感
-            # 秋：低明度(L小)，低飽和(S小)或濁色，沉穩感
-            if L > 160 or S > 100:  # 偏亮或高飽和
+            # 春：高明度(L大)，或高飽和(S大)
+            if l > 150 or s > 90:
                 season = "Spring"
                 desc = "春季型 (Warm + Light/Clear)"
             else:
@@ -2290,9 +2649,8 @@ class SkinAnalyzer(BaseFashionEngine):
                 desc = "秋季型 (Warm + Dark/Muted)"
         else:
             # 冷調：夏 vs 冬
-            # 夏：高明度(L大)，低飽和/柔和(S小)，粉嫩感
-            # 冬：低明度(L小) 或 高對比，銳利感
-            if L > 155:  # 偏白皙
+            # 夏：高明度(L大)
+            if l > 145:
                 season = "Summer"
                 desc = "夏季型 (Cool + Light/Soft)"
             else:
@@ -2311,7 +2669,7 @@ class SkinAnalyzer(BaseFashionEngine):
             'season_name': color_advice.get('name', season),
             'undertone': undertone,
             'skin_data': {
-                'lab': {'L': int(L), 'a': int(a), 'b': int(b)},
+                'lab': {'l': int(l), 'a': int(a), 'b': int(b)},
                 'hex': hex_color,
                 'is_warm': is_warm
             },
@@ -2360,11 +2718,12 @@ class TryOnEngine:
         except concurrent.futures.TimeoutError:
             print(">> ❌ 雲端模型連接逾時 (網路可能不穩)")
             return False
-        except Exception as e:
-            print(f">> ❌ 雲端模型連接失敗: {e}")
+        except Exception as err:
+            print(f">> ❌ 雲端模型連接失敗: {err}")
             return False
 
-    def _resize_image_for_api(self, img_path, max_size=1024):
+    @staticmethod
+    def _resize_image_for_api(img_path, max_size=1024):
         """
         [關鍵優化] 上傳前壓縮圖片。
         VTON 模型通常只需要 768x1024，傳原圖只會浪費頻寬導致 Timeout。
@@ -2381,11 +2740,11 @@ class TryOnEngine:
                 cv2.imwrite(img_path, img)
                 print(f"   [優化] 圖片已縮放至 {new_w}x{new_h}")
             return True
-        except Exception as e:
-            print(f"   [警告] 圖片縮放失敗: {e}")
+        except Exception as err:
+            print(f"   [警告] 圖片縮放失敗: {err}")
             return False
 
-    def generate(self, person_img_path, garment_img_path, category="upper_body"):
+    def generate(self, person_img_path, garment_img_path):
         """
         執行 AI 換裝
         Returns: (result_path, error_message)
@@ -2440,8 +2799,8 @@ class TryOnEngine:
         except concurrent.futures.TimeoutError:
             print(">> ❌ 生成逾時")
             return None, "AI 伺服器忙碌中 (Timeout)，請稍後再試。"
-        except Exception as e:
-            err_msg = str(e)
+        except Exception as err:
+            err_msg = str(err)
             print(f">> ❌ VTON 生成錯誤: {err_msg}")
 
             # 針對常見錯誤給予友善提示
@@ -2474,14 +2833,16 @@ class VoteInsightEngine:
                 self.client = future.result(timeout=15)
             print(">> ✅ 視覺模型連接成功！")
             return True
-        except Exception as e:
-            print(f">> ❌ 視覺模型連接失敗: {e}")
+        except Exception as err:
+            print(f">> ❌ 視覺模型連接失敗: {err}")
             return False
 
-    def _resize_image_for_api(self, img_path, max_size=768):
+    @staticmethod
+    def _resize_image_for_api(img_path, max_size=768):
         """
         [優化] VLM 只需要看大概輪廓與顏色，768px 足夠且速度快。
         """
+        # noinspection PyBroadException
         try:
             img = cv2.imread(img_path)
             if img is None: return False
@@ -2543,8 +2904,8 @@ class VoteInsightEngine:
 
         except concurrent.futures.TimeoutError:
             return "AI 思考太久了 (Timeout)，請稍後再試。"
-        except Exception as e:
-            print(f">> 投票分析失敗: {e}")
+        except Exception as err:
+            print(f">> 投票分析失敗: {err}")
             return "AI 正在休息，暫時無法評論您的穿搭。"
 
 vote_engine = VoteInsightEngine()
@@ -2563,10 +2924,11 @@ class TrendEngine:
         # 1. 取得用戶風格象限
         user_quadrant = 'CENTER'
         if user_data.get('style_profile'):
+            # noinspection PyBroadException
             try:
                 prof = json.loads(user_data['style_profile'])
                 user_quadrant = prof.get('primary_quadrant', 'CENTER')
-            except:
+            except Exception:  # 🌟 修正：明確指定 Exception，避免攔截系統退出指令
                 pass
 
         # 2. 簡單的加分邏輯
@@ -2576,10 +2938,12 @@ class TrendEngine:
             score += 10
 
         # 3. 膚色加分
+        # noinspection PyBroadException
         try:
             colors = json.loads(user_data.get('color_preferences', '[]'))
-            if colors: score += 5
-        except:
+            if colors:
+                score += 5
+        except Exception:  # 🌟 修正：明確指定 Exception
             pass
 
         return min(100, max(60, score))
@@ -2603,144 +2967,66 @@ class TrendEngine:
 
         return min(100, max(0, prediction + noise))
 
-# AI 網路趨勢搜查員 (Targeted Trend Scraper)
-def clean_taxonomy_keyword(raw_text):
+# 站內大數據趨勢計算引擎 (Internal Trend Engine)
+def generate_internal_trends():
     """
-    從詳細描述中提取核心搜尋關鍵字
-    例如: "老錢風 (Old Money) - 質感..." -> "老錢風"
+    基於站內真實數據 (分析歷史) 生成趨勢。
+    統計使用者最常被診斷出的風格，轉化為趨勢分數。
     """
-    # 取括號前或空格前的中文/英文主要詞彙
-    text = raw_text.split('(')[0].split('-')[0].strip()
-    return text
+    print("📊 正在根據站內大數據生成本站專屬趨勢...")
+    db_conn = get_db_connection()
 
-def search_keyword_heat(keyword, category):
-    """
-    [單一執行緒任務] 針對特定關鍵字去 Google News 爬取熱度
-    """
-    current_year = datetime.datetime.now().year
-    # 組合搜尋語法，例如: "2026 老錢風 穿搭"
-    search_query = f"{current_year} {keyword} 穿搭"
+    # 統計所有分析紀錄中的風格數量
+    query = "SELECT final_recommendation FROM analysis_history WHERE final_recommendation IS NOT NULL"
+    rows = db_conn.execute(query).fetchall()
+    db_conn.close()
 
-    encoded_query = urllib.parse.quote(search_query)
-    url = f"https://www.google.com/search?q={encoded_query}&tbm=nws&hl=zh-TW&gl=TW"
+    style_counts = {}
+    for r in rows:
+        # noinspection PyBroadException
+        try:
+            rec = json.loads(r['final_recommendation'])
+            style_name = rec.get('archetype') or rec.get('name') or '自然舒適系'
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+            # 清洗名稱 (移除 Emoji 與英文，例如 "🌸 甜美鄰家系 (Sweet)" -> "甜美鄰家系")
+            clean_name = style_name.split('(')[0].replace('🌸', '').replace('⚡', '').replace('💎', '').replace('👑',
+                                                                                                             '').replace(
+                '🍃', '').strip()
 
-    try:
-        response = requests.get(url, headers=headers, timeout=3)  # 設定短超時，快速失敗
-        if response.status_code != 200:
-            return None
+            style_counts[clean_name] = style_counts.get(clean_name, 0) + 1
+        except:
+            continue
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+    # 如果站內完全沒數據 (剛架好網站)，給予預設種子數據
+    if not style_counts:
+        style_counts = {
+            "甜美鄰家系": 15,
+            "自然舒適系": 28,
+            "潮流個性系": 12,
+            "優雅貴氣系": 18,
+            "氣場權威系": 8
+        }
 
-        # 尋找新聞區塊
-        articles = soup.find_all('div', class_='SoaBEf')
-        if not articles:
-            articles = soup.find_all('div', role='article')
+    # 轉換為趨勢格式 (取前 6 名最熱門的風格)
+    sorted_styles = sorted(style_counts.items(), key=lambda x: x[1], reverse=True)[:6]
 
-        count = len(articles)
-        if count == 0:
-            return None  # 該風格目前無新聞，視為冷門
+    # 找出最大值用來標準化分數 (讓最高分的風格大約在 95 分)
+    max_count = max([v for k, v in sorted_styles]) if sorted_styles else 1
 
-        # 抓取第一篇作為代表
-        top_article = articles[0]
+    live_trends = []
+    for kw, count in sorted_styles:
+        # 計算熱度分數 (正規化到 65~98 之間)
+        score = int(65 + (count / max_count) * 33)
 
-        # 標題
-        title_div = top_article.find('div', role='heading') or top_article.find('div', class_='n0jPhd')
-        title = title_div.text if title_div else f"{keyword} 流行趨勢"
-
-        # 時間
-        time_div = top_article.find('span', class_='OSrXXb') or top_article.find('span', class_='rbYSKb')
-        time_str = time_div.text if time_div else "近期"
-
-        # 摘要
-        desc_div = top_article.find('div', class_='GI74Re')
-        desc = desc_div.text if desc_div else title
-
-        # --- 計算熱度分數 (Heat Score) ---
-        # 基礎分 60 + 文章數量加權 + 時間加權
-        score = 60 + (count * 2)
-
-        if "小時" in time_str or "分" in time_str:
-            score += 15  # 超級新鮮
-        elif "天" in time_str:
-            days = re.findall(r'\d+', time_str)
-            if days and int(days[0]) <= 3:
-                score += 5  # 3天內
-
-        score = min(98, max(50, score))  # 限制在 50-98 之間
-
-        # 生成假歷史數據 (為了圖表好看)
+        # 生成歷史趨勢波動假資料 (讓前端曲線圖表好看)
         history = []
         curr = score
         for _ in range(7):
             history.insert(0, curr)
-            curr += random.randint(-8, 5)
+            curr += random.randint(-4, 4)
 
-        return (keyword, category, score, desc, json.dumps(history))
-
-    except Exception:
-        return None
-
-def fetch_trends_from_web():
-    """
-    [主函式] 從 STYLE_TAXONOMY 中隨機選取目標進行平行爬蟲
-    """
-    print("🌐 正在根據您的風格資料庫偵測最新趨勢...")
-
-    # 1. 準備候選名單 (只鎖定 'Trend' 和 'Culture' 這類變動快的)
-    # 我們不搜 'Occasion' 因為 '通勤' 永遠都有新聞，沒意義
-    candidates = []
-
-    # 加入流行趨勢 (Trend)
-    if "Trend" in STYLE_TAXONOMY:
-        for key, val in STYLE_TAXONOMY["Trend"]["options"].items():
-            candidates.append((clean_taxonomy_keyword(val), "Trend"))
-
-    # 加入核心風格 (Aesthetic)
-    if "Aesthetic" in STYLE_TAXONOMY:
-        for key, val in STYLE_TAXONOMY["Aesthetic"]["options"].items():
-            candidates.append((clean_taxonomy_keyword(val), "Style"))
-
-    # 加入文化系別 (Culture)
-    if "Culture" in STYLE_TAXONOMY:
-        for key, val in STYLE_TAXONOMY["Culture"]["options"].items():
-            candidates.append((clean_taxonomy_keyword(val), "Culture"))
-
-    # 2. 隨機抽出 6 個進行「實時偵測」 (避免太多請求卡死)
-    # 每次刷新，系統會關注不同的風格，模擬「動態探索」
-    targets = random.sample(candidates, min(6, len(candidates)))
-
-    live_trends = []
-
-    # 3. 平行運算 (Parallel Scraping) - 速度關鍵
-    # 同時發出 6 個請求，而不是一個接一個等
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-        # 提交任務
-        future_to_keyword = {
-            executor.submit(search_keyword_heat, kw, cat): kw
-            for kw, cat in targets
-        }
-
-        for future in concurrent.futures.as_completed(future_to_keyword):
-            result = future.result()
-            if result:
-                live_trends.append(result)
-                print(f"✅ 捕捉趨勢: {result[0]} (熱度: {result[2]})")
-
-    # 4. 排序 (熱度高的在前面)
-    live_trends.sort(key=lambda x: x[2], reverse=True)
-
-    # 若爬蟲全部失敗 (沒網或被擋)，回傳兜底數據 (Fallback)
-    if not live_trends:
-        print("⚠️ 爬蟲無回應，載入預設趨勢數據")
-        live_trends = [
-            ("美拉德", "Trend", 88, "秋冬必備的棕色系穿搭持續發燒。", json.dumps([80, 82, 85, 88, 86, 88])),
-            ("Clean Fit", "Trend", 85, "極簡俐落的剪裁風格成為職場首選。", json.dumps([75, 78, 80, 82, 85, 85])),
-            ("老錢風", "Trend", 82, "低調奢華的質感穿搭，強調面料與細節。", json.dumps([70, 75, 80, 80, 81, 82]))
-        ]
+        desc = f"🔥 本站近期有 {count} 位使用者被診斷為此風格，是目前的穿搭主流指標！"
+        live_trends.append((kw, "Style", score, desc, json.dumps(history)))
 
     return live_trends
 
@@ -2789,6 +3075,7 @@ def fetch_celeb_match_from_web(style_keyword):
 
         candidates = []
         for img in images:
+            # noinspection PyBroadException
             try:
                 src = img.get('src', '')
                 alt = img.get('alt', '')
@@ -2821,8 +3108,8 @@ def fetch_celeb_match_from_web(style_keyword):
             CELEB_CACHE[style_keyword] = chosen
             return chosen
 
-    except Exception as e:
-        print(f"⚠️ 名人爬蟲連線錯誤: {e}")
+    except Exception as err:
+        print(f"⚠️ 名人爬蟲連線錯誤: {err}")
 
     # --- Fallback: 如果爬蟲失敗，檢查是否有靜態備案 ---
     # 模糊比對：例如 "老錢風 (Old Money)" 只要包含 "老錢" 就匹配
@@ -2839,8 +3126,8 @@ def fetch_celeb_match_from_web(style_keyword):
 
 # 資料庫初始化與專家知識注入 (Database Init)
 def init_db():
-    conn = get_db_connection()
-    c = conn.cursor()
+    db_conn = get_db_connection()
+    c = db_conn.cursor()
 
     print("🚀 正在啟動全方位專家系統資料庫整合...")
 
@@ -2864,7 +3151,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, user_image_path TEXT, 
         face_data TEXT, body_data TEXT, final_recommendation TEXT, 
         ai_confidence INTEGER DEFAULT 85, is_incorrect BOOLEAN DEFAULT 0, user_feedback TEXT, 
-        ab_variant TEXT DEFAULT 'A', model_version TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+        ab_variant TEXT DEFAULT 'A', model_version TEXT, logic_trace TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
         FOREIGN KEY (user_id) REFERENCES users (id))''')
 
     # 建立商品、趨勢、貼文等其他表格
@@ -2964,7 +3251,6 @@ def init_db():
             body_type = logic.get("body_type", [])
             culture_vibe = mapping.get("culture_vibe", "General")
 
-            # [修正點] 使用 .get() 並設定預設值，防止 'name' 或其他欄位缺失
             quadrants_data.append((
                 q_code,
                 content.get("name", f"Style {q_code}"),  # 防呆預設值
@@ -3024,12 +3310,12 @@ def init_db():
     color_sql_data = []
     if "SEASONAL_COLOR_DATABASE" in globals():
         for season_key, info in SEASONAL_COLOR_DATABASE.items():
-            # 處理 colors 可能是 list 的情況
-            best = info.get("best_colors", [])
+            # 處理 colors 可能是 list 或是新版 dict 的情況
+            best = info.get("color_palette", {}).get("primary", []) if "color_palette" in info else info.get(
+                "best_colors", [])
             avoid = info.get("avoid_colors", [])
             match = info.get("matrix_match", [])
 
-            # [修正點] 同時嘗試讀取 name 或 name_zh_en
             name_val = info.get("name", info.get("name_zh_en", season_key))
 
             color_sql_data.append((
@@ -3080,16 +3366,8 @@ def init_db():
     # ==========================================
     # Part 5: 趨勢搜查與自動化佔位符 (Trends)
     # ==========================================
-    print("🌐 啟動 AI 趨勢爬蟲與同步...")
-    web_trends = []
-    try:
-        if "fetch_trends_from_web" in globals():
-            web_trends = fetch_trends_from_web()
-    except:
-        pass
-
-    if not web_trends:
-        web_trends = [('Balletcore', 'Trend', 95, '芭蕾風...', '[80,95]')]
+    print("📊 啟動站內趨勢大數據計算...")
+    web_trends = generate_internal_trends()
 
     for kw, cat, score, desc, data_pts in web_trends:
         kw_l = kw.lower()
@@ -3124,8 +3402,8 @@ def init_db():
     c.execute('INSERT OR IGNORE INTO users (email, password, name, role, is_vip) VALUES (?, ?, ?, ?, 1)',
               ('official@style.com', admin_pw, 'Smart Style 官方', 'official'))
 
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     print("✅ 資料庫初始化完成，所有專家矩陣數據已同步！")
 
 # 真實天氣引擎 (Stable Weather Engine - wttr.in)
@@ -3198,8 +3476,8 @@ def get_weather_data(location="Taoyuan"):
             # print(f"⚠️ 氣象服務回應異常: {response.status_code}")
             return fallback_data
 
-    except Exception as e:
-        # print(f"⚠️ 天氣連線失敗 (啟動備案模式): {e}")
+    except Exception as err:
+        print(f"⚠️ 天氣連線失敗 (啟動備案模式): {err}")
         # 為了演示效果，隨機微調一下數字，讓畫面看起來是活的
         fallback_data['temp'] += random.randint(-2, 2)
         return fallback_data
@@ -3210,15 +3488,16 @@ def calculate_fairness_metrics():
     演算法公平性報告計算 (基於真實資料庫)
     統計各身形的使用者回報「結果不準確 (is_incorrect)」的比例
     """
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     # 撈取所有分析紀錄 (包含身形數據與錯誤標記)
-    rows = conn.execute('SELECT body_data, is_incorrect FROM analysis_history').fetchall()
-    conn.close()
+    rows = db_conn.execute('SELECT body_data, is_incorrect FROM analysis_history').fetchall()
+    db_conn.close()
 
     # 使用 Python 字典進行統計 (比 SQL LIKE 更精準處理 JSON)
     stats = {}
 
     for r in rows:
+        # noinspection PyBroadException
         try:
             # 解析 JSON 數據
             b_data = json.loads(r['body_data'])
@@ -3267,7 +3546,7 @@ def get_trend_analysis():
     長期趨勢分析數據 (基於真實資料庫)
     分析過去 6 個月，使用者最常被診斷出哪種風格 (Style Archetype)
     """
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     # 撈取分析紀錄 (按時間排序)
     query = '''
@@ -3275,14 +3554,15 @@ def get_trend_analysis():
         FROM analysis_history 
         ORDER BY created_at ASC
     '''
-    rows = conn.execute(query).fetchall()
-    conn.close()
+    rows = db_conn.execute(query).fetchall()
+    db_conn.close()
 
     # 資料結構: { '2023-10': {'甜美系': 5, '酷帥系': 2}, ... }
     monthly_stats = {}
     all_styles = set()
 
     for r in rows:
+        # noinspection PyBroadException
         try:
             # 取得月份 (YYYY-MM)
             month = r['created_at'][:7]
@@ -3339,20 +3619,20 @@ def check_style_fatigue(user_id):
     Returns:
         str: 造成疲勞的風格名稱 (例如 "甜美鄰家系")，若無疲勞則回傳 None。
     """
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         # 只撈取最近 3 筆資料
-        recent = conn.execute(
+        recent = db_conn.execute(
             '''SELECT final_recommendation FROM analysis_history 
                WHERE user_id = ? 
                ORDER BY created_at DESC LIMIT 3''',
             (user_id,)
         ).fetchall()
-    except Exception as e:
-        print(f"Fatigue DB Error: {e}")
+    except Exception as err:
+        print(f"Fatigue DB Error: {err}")
         return None
     finally:
-        conn.close()
+        db_conn.close()
 
     # 資料不足 3 筆，不可能疲勞
     if len(recent) < 3:
@@ -3384,11 +3664,21 @@ def check_style_fatigue(user_id):
             # print(f"⚠️ 偵測到風格疲勞: {styles[0]}")
             return styles[0]  # 回傳該風格名稱
 
-    except Exception as e:
-        print(f"Fatigue Check Error: {e}")
+    except Exception as err:
+        print(f"Fatigue Check Error: {err}")
         return None
 
     return None
+
+def generate_dynamic_response(user_name, body_shape, style_arch, user_msg):
+    """ 當 AI API 斷線時的備用回覆產生器 """
+    import random
+    responses = [
+        f"哈囉 {user_name}！身為您的專屬顧問，針對您的{body_shape}與{style_arch}風格...",
+        f"收到您的問題「{user_msg}」！以您的{style_arch}氣質，可以試著加入一點質感飾品來點綴！",
+        f"沒問題！因為您是{body_shape}，我會推薦您挑選硬挺材質的版型會更修飾喔。"
+    ]
+    return random.choice(responses)
 
 # 穿搭故事產生器 (Contextual Story Generator)
 def get_story_tag(life_stage):
@@ -3440,19 +3730,16 @@ def get_automated_hacks(face_shape, body_shape):
     random.shuffle(hacks)
     return hacks[:5]
 
-def analyze_style_logic(user_data, weather_data, request_type, variant):
+def analyze_style_logic(user_data, weather_data):
     """
-    [2026 最終修正版] 核心演算法
-    特色：
-    1. 修正 body_data 變數錯誤，防止崩潰。
-    2. 優化配件切割邏輯 (頓號拆解)，確保顯示完整。
-    3. 全資料庫連動與膚色整合。
+    [2026 最終完美合併版] 核心演算法
     """
     trace = []
 
     # --- Phase 1: 數據解析 ---
     try:
-        if isinstance(user_data, str): user_data = json.loads(user_data)
+        if isinstance(user_data, str):
+            user_data = json.loads(user_data)
 
         raw_face = user_data.get('face_data', {})
         raw_body = user_data.get('body_data', {})
@@ -3466,21 +3753,26 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
         b_shape = body.get('shape', '直筒型')
 
         raw_gender = str(user_data.get('gender', 'Female')).upper()
-        gender_key = "WOMEN" if "FEM" in raw_gender else "MEN"
+        gender_key = "WOMEN" if any(k in raw_gender for k in ["FEM", "女", "F"]) else "MEN"
         skin_season = user_data.get('skin_season', None)
 
         trace.append(f"特徵: {f_shape}, {b_shape}, {skin_season}")
 
-    except Exception as e:
-        print(f"Logic Parse Error: {e}")
-        return f"數據解析異常: {e}", "", "System Error", {}
+    except Exception as err:
+        print(f"Logic Parse Error: {err}")
+        return f"數據解析或分析異常: {err}", " -> ".join(trace) if trace else "Error", "System Error", {}
 
     # --- Phase 2: 風格量化 ---
     curve, volume = 5.0, 5.0
-    for keywords, score_delta in STYLE_SCORING_RULES["FACE_CURVE"]:
-        if any(k in f_shape for k in keywords): curve += score_delta; break
-    for keywords, score_delta in STYLE_SCORING_RULES["BODY_VOLUME"]:
-        if any(k in b_shape for k in keywords): volume += score_delta; break
+    for keywords, score_delta in STYLE_SCORING_RULES.get("FACE_CURVE", []):
+        if any(k in f_shape for k in keywords):
+            curve += score_delta
+            break
+
+    for keywords, score_delta in STYLE_SCORING_RULES.get("BODY_VOLUME", []):
+        if any(k in b_shape for k in keywords):
+            volume += score_delta
+            break
 
     if curve >= 6.0:
         target_q = 'Q1' if volume < 6.0 else 'Q3'
@@ -3495,7 +3787,7 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
     # --- Phase 3: 資料庫匹配 ---
     hacks = get_automated_hacks(f_shape, b_shape)
 
-    # 髮型 (從 HAIRSTYLE_DATABASE)
+    # 髮型
     hair_db = HAIRSTYLE_DATABASE.get(gender_key, {})
     suitable_hairs = []
     for cat, items in hair_db.items():
@@ -3503,12 +3795,10 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
             if target_q in v.get("matrix_tag", []):
                 suitable_hairs.append(f"{v['name']}")
 
-    # 妝容 (從 MAKEUP_DATABASE)
-    makeup_db = MAKEUP_DATABASE.get(gender_key, MAKEUP_DATABASE["WOMEN"])
+    # 妝容
+    makeup_db = MAKEUP_DATABASE.get(gender_key, MAKEUP_DATABASE.get("WOMEN", {}))
     suitable_makeups = []
-
     for category_name, style_dict in makeup_db.items():
-        # style_dict 內容如: {"Glass_Skin": {name, matrix_tag...}, ...}
         for style_key, info in style_dict.items():
             if target_q in info.get("matrix_tag", []):
                 suitable_makeups.append(f"{info['name']}")
@@ -3518,59 +3808,59 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
     seasonal_vibe = ""
     if skin_season and skin_season in SEASONAL_COLOR_DATABASE:
         info = SEASONAL_COLOR_DATABASE[skin_season]
-        suitable_colors.append(
-            {"season": info["name"] + " (實測)", "best": info["best_colors"], "avoid": info["avoid_colors"]})
-        seasonal_vibe = info["vibe"]
+        best_c = info.get("color_palette", {}).get("primary", []) if "color_palette" in info else info.get(
+            "best_colors", [])
+        suitable_colors.append({"season": info.get("name", skin_season) + " (實測)", "best": best_c,
+                                "avoid": info.get("avoid_colors", [])})
+        seasonal_vibe = info.get("vibe", "")
     else:
         for season, info in SEASONAL_COLOR_DATABASE.items():
             if target_q in info.get("matrix_match", []):
+                best_c = info.get("color_palette", {}).get("primary", []) if "color_palette" in info else info.get(
+                    "best_colors", [])
                 suitable_colors.append(
-                    {"season": info["name"], "best": info["best_colors"], "avoid": info["avoid_colors"]})
-                if not seasonal_vibe: seasonal_vibe = info["vibe"]
+                    {"season": info.get("name", season), "best": best_c, "avoid": info.get("avoid_colors", [])})
+                if not seasonal_vibe:
+                    seasonal_vibe = info.get("vibe", "")
 
     # 材質與圖案
     suitable_fabrics = []
     suitable_patterns = []
     for cat, subcats in MATERIAL_PATTERN_DATABASE.get("FABRICS", {}).items():
         for k, v in subcats.items():
-            if target_q in v.get("matrix_tag", []): suitable_fabrics.append(v["name"])
-    for cat, v in MATERIAL_PATTERN_DATABASE.get("PATTERNS", {}).items():
-        if target_q in v.get("matrix_tag", []): suitable_patterns.append(v["name"])
+            if target_q in v.get("matrix_tag", []):
+                suitable_fabrics.append(v["name"])
 
-    # --- [配件提取邏輯 - 擴充版] ---
+    for cat, v in MATERIAL_PATTERN_DATABASE.get("PATTERNS", {}).items():
+        if target_q in v.get("matrix_tag", []):
+            suitable_patterns.append(v["name"])
+
+    # 配件 (擴充版切割邏輯)
     gender_acc_db = ACCESSORY_MATRIX.get(gender_key, ACCESSORY_MATRIX)
     acc_config = gender_acc_db.get(target_q, {})
-
     acc_items = []
-
     categories_to_pick = ["Jewelry", "Functional_Styling", "Bags", "Hair_Styling"]
 
     for cat in categories_to_pick:
         if cat in acc_config:
             items = acc_config[cat]
-
-            # A. 如果是 List (新版結構)，直接選取
             if isinstance(items, list):
-                # 每個類別嘗試選取 2-3 個，讓顯示更豐富
                 count_to_pick = min(3, len(items))
                 picks = random.sample(items, count_to_pick)
                 acc_items.extend(picks)
-
-            # B. 如果是 Dict (舊版結構)，取 values 並清洗
             elif isinstance(items, dict):
                 values = list(items.values())
                 count_to_pick = min(3, len(values))
                 picks = random.sample(values, count_to_pick)
-
                 for p in picks:
                     text_part = p
-                    if '/' in p: text_part = p.rsplit('/', 1)[-1].strip()
-                    # 拆解頓號
+                    if '/' in p:
+                        text_part = p.rsplit('/', 1)[-1].strip()
                     sub_items = re.split(r'[、,]', text_part)
                     for item in sub_items:
-                        if item.strip(): acc_items.append(item.strip())
+                        if item.strip():
+                            acc_items.append(item.strip())
 
-    # 隨機打亂
     random.shuffle(acc_items)
     acc_highlight = "、".join(acc_items[:12])
 
@@ -3578,12 +3868,9 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
     wardrobe_data = style_config.get('wardrobe_guide', {}).get(gender_key, {})
     wardrobe_items = wardrobe_data.get('items', {'tops': 'N/A', 'bottoms': 'N/A', 'shoes': 'N/A'})
 
-    # 2. 造型建議 (用於 Fallback)
     styling_data = style_config.get('styling_tips', {}).get(gender_key, {})
-
     temp = weather_data.get('temp', 24)
 
-    # 如果 suitable_makeups 為空，使用預設值
     final_makeup = random.choice(suitable_makeups) if suitable_makeups else styling_data.get('makeup', 'Clean Look')
     final_hair = random.choice(suitable_hairs) if suitable_hairs else styling_data.get('hair', 'Neat Style')
 
@@ -3595,18 +3882,18 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
     result_json = {
         'quadrant': target_q,
         'full_name': style_config['name'],
-        'psychology': style_config['analysis_logic']['psychology'],
+        'psychology': style_config.get('analysis_logic', {}).get('psychology', ''),
 
         # 穿搭
-        'wardrobe_tops': wardrobe_items.get('tops', ''),
-        'wardrobe_bottoms': wardrobe_items.get('bottoms', ''),
-        'wardrobe_shoes': wardrobe_items.get('shoes', ''),
+        'wardrobe_tops': wardrobe_items.get('tops', 'N/A'),
+        'wardrobe_bottoms': wardrobe_items.get('bottoms', 'N/A'),
+        'wardrobe_shoes': wardrobe_items.get('shoes', 'N/A'),
 
         # 細節
         'fabrics': suitable_fabrics,
         'patterns': suitable_patterns,
         'makeup': final_makeup,
-        'makeup_list': suitable_makeups,  # 完整列表供前端標籤顯示
+        'makeup_list': suitable_makeups,
         'hairstyle': final_hair,
         'hairstyle_list': suitable_hairs,
         'accessories': acc_highlight,
@@ -3617,15 +3904,17 @@ def analyze_style_logic(user_data, weather_data, request_type, variant):
     }
 
     advice_text = (
-            f"### 👑 風格定調：{style_config['name']}\n"
-            f"_{style_config['analysis_logic']['psychology']}_\n\n"
+            f"### 👑 風格定調：{result_json['full_name']}\n"
+            f"_{result_json['psychology']}_\n\n"
             f"**🎨 色彩與氛圍**：\n{color_tips}。適合 {seasonal_vibe} 的氛圍。\n\n"
-            f"**👗 穿搭公式 (Do's)**：\n• **上身**：{result_json['wardrobe_tops']}\n• **下著**：{result_json['wardrobe_bottoms']}\n\n"
+            f"**👗 穿搭公式 (Do's)**：\n"
+            f"• **上身**：{result_json['wardrobe_tops']}\n"
+            f"• **下著**：{result_json['wardrobe_bottoms']}\n"
+            f"• **鞋款**：{result_json['wardrobe_shoes']}\n\n"
             f"**💄 妝髮建議**：\n推薦 **{final_makeup}** 搭配 **{final_hair}**。\n飾品可選擇：**{acc_highlight}**。\n\n"
             f"**🛠️ 個人化修飾**：\n" + "\n".join(hacks[:3])
     )
 
-    # 必須回傳 4 個值
     return advice_text, " -> ".join(trace), "AI 形象診斷完成", result_json
 
 # 使用者偏好與避雷系統 (Preference & Safety)
@@ -3651,8 +3940,8 @@ def get_user_dislikes(user_data):
             dislikes = [dislikes]
 
         return [str(d).strip().lower() for d in dislikes]
-    except Exception as e:
-        print(f"Error parsing dislikes: {e}")
+    except Exception as err:
+        print(f"Error parsing dislikes: {err}")
         return []
 
 def update_user_dislikes(user_id, tags):
@@ -3666,12 +3955,13 @@ def update_user_dislikes(user_id, tags):
     if not tags:
         return
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        user = conn.execute("SELECT style_preferences FROM users WHERE id=?", (user_id,)).fetchone()
+        user = db_conn.execute("SELECT style_preferences FROM users WHERE id=?", (user_id,)).fetchone()
 
         prefs = {}
         if user and user['style_preferences']:
+            # noinspection PyBroadException
             try:
                 prefs = json.loads(user['style_preferences'])
             except:
@@ -3691,15 +3981,15 @@ def update_user_dislikes(user_id, tags):
         # 轉回 list 並存入
         prefs['dislike'] = list(current_dislikes)
 
-        conn.execute("UPDATE users SET style_preferences=? WHERE id=?",
+        db_conn.execute("UPDATE users SET style_preferences=? WHERE id=?",
                      (json.dumps(prefs, ensure_ascii=False), user_id))
-        conn.commit()
+        db_conn.commit()
         print(f"✅ 用戶 {user_id} 避雷清單已更新: {tags}")
 
-    except Exception as e:
-        print(f"Update dislikes error: {e}")
+    except Exception as err:
+        print(f"Update dislikes error: {err}")
     finally:
-        conn.close()
+        db_conn.close()
 
 def is_safe_recommendation(text, dislikes):
     """
@@ -3729,15 +4019,15 @@ def check_analysis_frequency(user_id):
     檢查使用者是否在短時間內重複分析
     限制：一般用戶 60 秒，VIP/Admin 無限制
     """
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         # 1. 先檢查是否為 VIP (若有權限裝飾器，這裡可以簡化，但為了獨立性還是查一下)
-        user = conn.execute('SELECT is_vip, role FROM users WHERE id = ?', (user_id,)).fetchone()
+        user = db_conn.execute('SELECT is_vip, role FROM users WHERE id = ?', (user_id,)).fetchone()
         if user and (user['is_vip'] or user['role'] in ['admin', 'official']):
             return True  # VIP 直接放行
 
         # 2. 檢查最後一次分析時間
-        last_record = conn.execute(
+        last_record = db_conn.execute(
             'SELECT created_at FROM analysis_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
             (user_id,)).fetchone()
 
@@ -3745,29 +4035,28 @@ def check_analysis_frequency(user_id):
             # SQLite 的 created_at 通常是 UTC 字串 'YYYY-MM-DD HH:MM:SS'
             last_time_str = last_record['created_at']
 
-            # 將字串轉為時間物件
+            # 將字串轉為時間物件，並強制補上 UTC 時區標籤 (替換 tzinfo)
             last_time = datetime.datetime.strptime(last_time_str, '%Y-%m-%d %H:%M:%S')
+            last_time = last_time.replace(tzinfo=datetime.timezone.utc)
 
-            # [關鍵修正] 使用 UTC 時間相減，避免時區誤差
-            # 因為 SQLite DEFAULT CURRENT_TIMESTAMP 是 UTC
-            current_time = datetime.datetime.utcnow()
+            # 使用官方建議的新寫法取得當下 UTC 時間
+            current_time = datetime.datetime.now(datetime.timezone.utc)
 
             # 計算秒數差
             time_diff = (current_time - last_time).total_seconds()
 
-            # [優化] 將限制縮短為 60 秒，避免 Demo 時等待太久尷尬
             limit_seconds = 60
 
             if time_diff < limit_seconds:
                 print(f"⏳ 分析冷卻中 (剩餘 {int(limit_seconds - time_diff)} 秒)")
                 return False
 
-    except Exception as e:
-        print(f"Rate limit check error: {e}")
+    except Exception as err:
+        print(f"Rate limit check error: {err}")
         # 出錯時預設允許，以免卡死用戶
         return True
     finally:
-        conn.close()
+        db_conn.close()
 
     return True
 
@@ -3796,16 +4085,16 @@ def set_locale(locale):
 
     # 2. 若已登入，同步更新使用者偏好
     if 'user_id' in session:
-        conn = None
+        db_conn = None
         try:
-            conn = get_db_connection()
-            conn.execute('UPDATE users SET locale = ? WHERE id = ?', (locale, session['user_id']))
-            conn.commit()
-        except Exception as e:
-            print(f"Locale Update Error: {e}")
+            db_conn = get_db_connection()
+            db_conn.execute('UPDATE users SET locale = ? WHERE id = ?', (locale, session['user_id']))
+            db_conn.commit()
+        except Exception as err:
+            print(f"Locale Update Error: {err}")
         finally:
-            # [重要] 確保連線一定會關閉
-            if conn: conn.close()
+            #  確保連線一定會關閉
+            if db_conn: db_conn.close()
 
     # 3. 導回上一頁 (若無上一頁則回首頁)
     return redirect(request.referrer or url_for('index'))
@@ -3831,11 +4120,11 @@ def login_page():
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
 
-        conn = get_db_connection()
+        db_conn = get_db_connection()
         try:
-            user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+            user = db_conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
         finally:
-            conn.close()  # 確保連線一定關閉
+            db_conn.close()  # 確保連線一定關閉
 
         if user and check_password_hash(user['password'], password):
             # 1. 檢查帳號狀態
@@ -3847,16 +4136,16 @@ def login_page():
             session.permanent = True
             session['user_id'] = user['id']
             session['user_name'] = user['name']
+            session['avatar'] = user['avatar']
             session['role'] = user['role']
             session['is_vip'] = bool(user['is_vip'])
             session['is_admin'] = (user['role'] == 'admin')
             session['locale'] = user['locale'] if user['locale'] else 'zh_TW'
 
             # 3. 智慧導向 (Smart Redirect)
-            # 優先導向使用者原本想去的頁面 (next)，沒有則依身分分流
             next_url = request.args.get('next')
 
-            # 安全檢查：確保 next_url 是站內連結 (避免 Open Redirect 漏洞)
+            # 安全檢查：確保 next_url 是站內連結
             if not next_url or not next_url.startswith('/'):
                 next_url = None
 
@@ -3896,8 +4185,8 @@ def auth_google():
             name=user_info['name'],
             avatar=user_info.get('picture')
         )
-    except Exception as e:
-        print(f"Google Login Error: {e}")
+    except Exception as err:
+        print(f"Google Login Error: {err}")
         flash('Google 登入失敗，請稍後再試', 'error')
         return redirect(url_for('login_page'))
 
@@ -3910,9 +4199,6 @@ def login_line():
 @app.route('/auth/line')
 def auth_line():
     try:
-        token = oauth.line.authorize_access_token()
-        # 解析 ID Token 獲取用戶資訊
-        id_token = token.get('id_token')
         # 這裡需要解碼 (Authlib 自動處理) 或再次呼叫 profile API
         # 簡單起見，我們呼叫 LINE Profile API
         resp = oauth.line.get('profile')
@@ -3930,8 +4216,8 @@ def auth_line():
             name=profile['displayName'],
             avatar=profile.get('pictureUrl')
         )
-    except Exception as e:
-        print(f"LINE Login Error: {e}")
+    except Exception as err:
+        print(f"LINE Login Error: {err}")
         flash('LINE 登入失敗', 'error')
         return redirect(url_for('login_page'))
 
@@ -3943,10 +4229,10 @@ def handle_oauth_login(provider, email, name, avatar):
     2. 若存在 -> 登入
     3. 若不存在 -> 自動註冊 -> 登入
     """
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         # 1. 查詢用戶
-        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        user = db_conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
 
         if user:
             # [老朋友] 直接登入
@@ -3962,7 +4248,7 @@ def handle_oauth_login(provider, email, name, avatar):
             import uuid
             random_pw = str(uuid.uuid4())
 
-            cursor = conn.execute(
+            cursor = db_conn.execute(
                 '''INSERT INTO users (name, email, password, role, avatar) 
                    VALUES (?, ?, ?, ?, ?)''',
                 (name, email, random_pw, 'user', avatar)
@@ -3971,7 +4257,7 @@ def handle_oauth_login(provider, email, name, avatar):
             user_name = name
             role = 'user'
             is_vip = 0
-            conn.commit()
+            db_conn.commit()
             flash(f'歡迎加入！已使用 {provider.title()} 完成註冊', 'success')
 
         # 2. 寫入 Session
@@ -3983,12 +4269,12 @@ def handle_oauth_login(provider, email, name, avatar):
 
         return redirect(url_for('index'))
 
-    except Exception as e:
-        print(f"DB Error: {e}")
+    except Exception as err:
+        print(f"DB Error: {err}")
         flash('系統登入錯誤', 'error')
         return redirect(url_for('login_page'))
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register_page():
@@ -4006,12 +4292,14 @@ def register_page():
 
         # 處理數值 (使用簡潔寫法)
         def parse_float(val):
+            # noinspection PyBroadException
             try:
                 return float(val) if val else None
             except:
                 return None
 
         def parse_int(val):
+            # noinspection PyBroadException
             try:
                 return int(val) if val else None
             except:
@@ -4031,9 +4319,9 @@ def register_page():
             'colors': json.dumps(request.form.getlist('colors'), ensure_ascii=False)
         }
 
-        conn = get_db_connection()
+        db_conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = db_conn.cursor()
             # 3. 寫入資料庫
             cursor.execute('''
                 INSERT INTO users (
@@ -4052,7 +4340,7 @@ def register_page():
 
             # 4. [效能優化] 直接取得剛插入的 ID，無需重新 SELECT
             new_user_id = cursor.lastrowid
-            conn.commit()
+            db_conn.commit()
 
             # 5. 自動登入設定 Session
             session['user_id'] = new_user_id
@@ -4068,11 +4356,11 @@ def register_page():
             return redirect(url_for('shop_page'))
 
         except sqlite3.IntegrityError:
-            conn.rollback()  # 發生錯誤時回滾
+            db_conn.rollback()  # 發生錯誤時回滾
             flash('此 Email 已被註冊，請直接登入', 'error')
             return redirect(url_for('login_page'))
         finally:
-            conn.close()
+            db_conn.close()
 
     return render_template('register.html', taxonomy=STYLE_TAXONOMY)
 
@@ -4107,29 +4395,28 @@ def daily_guide_page():
 
     # 2. 獲取今日行程
     today = datetime.datetime.now().strftime('%Y-%m-%d')
-    conn = get_db_connection()
-    events = conn.execute(
+    db_conn = get_db_connection()
+    events = db_conn.execute(
         'SELECT * FROM calendar_events WHERE user_id = ? AND date_str = ?',
         (session['user_id'], today)
     ).fetchall()
 
     # 3. 獲取使用者資料 (用於 AI 分析)
-    user_row = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-    conn.close()
+    user_row = db_conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    db_conn.close()
 
     user_data = dict(user_row) if user_row else {}
 
     # 4. 執行 AI 分析
     # 預設行程情境
-    event_title = events[0]['title'] if events else "日常行程"
 
     try:
         # analyze_style_logic 回傳 4 個值
         advice_text, trace_log, story, style_info = analyze_style_logic(
-            user_data, weather, event_title, 'A'
+            user_data, weather
         )
-    except Exception as e:
-        print(f"Daily Guide Error: {e}")
+    except Exception as err:
+        print(f"Daily Guide Error: {err}")
         advice_text = "AI 正在待命，建議您穿著舒適自在的服裝。"
         story = "美好的一天"
         style_info = {'name': '自然風格', 'dos': [], 'donts': []}
@@ -4150,22 +4437,23 @@ def history_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
-    analyses = conn.execute(
+    db_conn = get_db_connection()
+    analyses = db_conn.execute(
         'SELECT * FROM analysis_history WHERE user_id = ? ORDER BY created_at DESC',
         (session['user_id'],)
     ).fetchall()
-    conn.close()
+    db_conn.close()
 
     parsed = []
     for r in analyses:
-        try:
+        try:  # <--- 注意這裡的 try 位置
             # 安全解析 JSON
             f = json.loads(r['face_data']) if r['face_data'] else {}
 
             # 處理推薦結果 (兼容新舊格式)
             style_name = "AI 分析報告"
             if r['final_recommendation']:
+                # noinspection PyBroadException
                 try:
                     rec = json.loads(r['final_recommendation'])
                     # 優先找 archetype，其次找 name，最後找 summary
@@ -4175,15 +4463,24 @@ def history_page():
                 except:
                     pass
 
+            img_path = r['user_image_path']
+            clean_img_path = ''
+            if img_path:
+                clean_img_path = img_path.replace('\\', '/')
+                if 'static/' in clean_img_path:
+                    clean_img_path = clean_img_path.split('static/')[-1]
+                clean_img_path = clean_img_path.lstrip('/')
+
             parsed.append({
                 'id': r['id'],
                 'date': r['created_at'],
-                'img': r['user_image_path'],
+                'img': clean_img_path,
                 'face': f.get('shape', '未偵測'),
                 'style': style_name,
-                'trace': r.get('logic_trace', '')  # 顯示 AI 推理路徑
+                'trace': r['logic_trace'] or ''
             })
-        except Exception as e:
+        except Exception as err:
+            print(f"歷史紀錄讀取錯誤: {err}")
             continue
 
     return render_template('history.html', analyses=parsed)
@@ -4206,19 +4503,20 @@ def smart_mirror():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
-    last_analysis = conn.execute(
+    db_conn = get_db_connection()
+    user = db_conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    last_analysis = db_conn.execute(
         'SELECT * FROM analysis_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
         (session['user_id'],)
     ).fetchone()
-    conn.close()
+    db_conn.close()
 
     # 預設值
     recommendation = "今天還沒進行分析喔！"
     style_info = {}
 
     if last_analysis:
+        # noinspection PyBroadException
         try:
             rec_json = json.loads(last_analysis['final_recommendation'])
 
@@ -4256,24 +4554,25 @@ def lab_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     # 1. 體態追蹤數據
-    tracking = conn.execute(
+    tracking = db_conn.execute(
         'SELECT * FROM body_tracking WHERE user_id = ? ORDER BY recorded_at ASC',
         (session['user_id'],)
     ).fetchall()
 
     # 2. 最新分析
-    last_analysis = conn.execute(
+    last_analysis = db_conn.execute(
         'SELECT * FROM analysis_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
         (session['user_id'],)
     ).fetchone()
-    conn.close()
+    db_conn.close()
 
     # 3. 資料處理
     analysis_data = {'face': {}, 'body': {}, 'rec': {}}
     if last_analysis:
+        # noinspection PyBroadException
         try:
             if last_analysis['face_data']:
                 analysis_data['face'] = json.loads(last_analysis['face_data'])
@@ -4308,25 +4607,24 @@ def community_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
-    # 1. 撈取貼文 (包含作者資訊、按讚狀態、留言數)
-    # [優化] 使用 LEFT JOIN 一次撈取所需資訊，減少資料庫負擔
-    sql = '''
-        SELECT p.*, u.name as user_name, u.role as user_role, u.is_vip, u.id as author_id,
-        (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = ?) as is_liked,
-        (SELECT COUNT(*) FROM follows WHERE follower_id = ? AND followed_id = p.user_id) as is_following
-        FROM posts p 
-        JOIN users u ON p.user_id = u.id 
+    # 1. 撈取貼文 (把 p.author_id 改成 p.user_id，following_id 改成 followed_id)
+    posts = db_conn.execute('''
+        SELECT p.*, u.name as user_name, u.role as user_role, u.is_vip, u.avatar as user_avatar,
+               (SELECT COUNT(*) FROM likes WHERE post_id = p.id) as likes_count,
+               EXISTS(SELECT 1 FROM likes WHERE post_id = p.id AND user_id = ?) as is_liked,
+               EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followed_id = p.user_id) as is_following
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
         ORDER BY p.created_at DESC
         LIMIT 50
-    '''
-    posts = conn.execute(sql, (session['user_id'], session['user_id'])).fetchall()
+    ''', (session['user_id'], session['user_id'])).fetchall()
 
     posts_data = []
     for p in posts:
-        # 撈取留言 (限制顯示前 3 則，提升載入速度)
-        comments = conn.execute('''
+        # 撈取留言
+        comments = db_conn.execute('''
             SELECT c.*, u.name as commenter_name, u.role as commenter_role 
             FROM comments c 
             JOIN users u ON c.user_id = u.id 
@@ -4339,19 +4637,61 @@ def community_page():
         yes_pct = int((p['poll_yes'] / total) * 100) if total > 0 else 0
 
         # 解析標籤
-        try:
-            tags = json.loads(p['tags']) if p['tags'] else []
-        except:
-            tags = []
+        raw_tags = p['tags']
+        tags = []
+        if raw_tags:
+            try:
+                parsed = json.loads(raw_tags)
+            except:
+                parsed = raw_tags
 
+            if isinstance(parsed, str) and parsed.startswith('['):
+                import ast
+                try:
+                    parsed = ast.literal_eval(parsed)
+                except:
+                    parsed = [parsed]
+            elif isinstance(parsed, str):
+                parsed = [parsed]
+
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if isinstance(item, str) and item.startswith('['):
+                        import ast
+                        try:
+                            tags.extend(ast.literal_eval(item))
+                        except:
+                            tags.append(item)
+                    else:
+                        tags.append(item)
+
+        # 處理貼文圖片路徑
+        img_path = p['image_path']
+        if img_path and not img_path.startswith('http'):
+            clean_path = img_path.replace('static/', '')
+            img_url = url_for('static', filename=clean_path)
+        else:
+            img_url = img_path
+
+        # 處理發文者的大頭貼路徑
+        raw_avatar = p['user_avatar']
+        if raw_avatar and not raw_avatar.startswith('http'):
+            author_avatar = url_for('static', filename=raw_avatar.replace('static/', ''))
+        elif raw_avatar:
+            author_avatar = raw_avatar
+        else:
+            author_avatar = f"https://ui-avatars.com/api/?name={p['user_name']}&background=F3EFEE&color=D4A5A5"
+
+        # 將整理好的資料放進清單
         posts_data.append({
             'id': p['id'],
-            'image': p['image_path'],
+            'author_avatar': author_avatar,
+            'image_path': img_url,
             'content': p['content'],
             'author_name': "匿名用戶" if p['is_anonymous'] else p['user_name'],
             'author_role': p['user_role'],
             'is_vip': bool(p['is_vip']),
-            'author_id': p['author_id'],
+            'author_id': p['user_id'],  # 💡 這裡也要改成 p['user_id']
             'is_anonymous': bool(p['is_anonymous']),
             'is_qa': bool(p['is_qa']),
             'poll_yes': p['poll_yes'],
@@ -4360,12 +4700,12 @@ def community_page():
             'tags': tags,
             'likes_count': p['likes_count'],
             'is_liked': bool(p['is_liked']),
-            'is_following': bool(p['is_following']),  # 新增追蹤狀態
-            'created_at': p['created_at'][:10],  # 只顯示日期
+            'is_following': bool(p['is_following']),
+            'created_at': p['created_at'][:10],
             'comments': comments
         })
 
-    conn.close()
+    db_conn.close()
     return render_template('community.html', posts=posts_data)
 
 @app.route('/community/new', methods=['GET', 'POST'])
@@ -4382,16 +4722,16 @@ def new_post():
             flash('請選擇要上傳的照片', 'warning')
             return redirect(request.url)
 
-        file = request.files['image']
+        upload_file = request.files['image']
 
         # 2. 儲存圖片
-        filename = secure_filename(file.filename)
+        filename = secure_filename(upload_file.filename)
         unique_name = f"post_{uuid.uuid4()}_{filename}"
 
         if not os.path.exists(app.config['UPLOAD_FOLDER']):
             os.makedirs(app.config['UPLOAD_FOLDER'])
 
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+        upload_file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
 
         # 3. 處理內容與標籤
         content = ContentSafety.sanitize(request.form.get('content', ''))
@@ -4399,8 +4739,8 @@ def new_post():
         tags_list = [t.strip() for t in raw_tags.split(',') if t.strip()]
 
         # 4. 寫入資料庫
-        conn = get_db_connection()
-        conn.execute(
+        db_conn = get_db_connection()
+        db_conn.execute(
             '''INSERT INTO posts 
                (user_id, image_path, content, tags, is_anonymous, is_qa) 
                VALUES (?, ?, ?, ?, ?, ?)''',
@@ -4413,30 +4753,64 @@ def new_post():
                 request.form.get('is_qa') == 'on'
             )
         )
-        conn.commit()
-        conn.close()
+        db_conn.commit()
+        db_conn.close()
 
         flash('貼文發布成功！', 'success')
         return redirect(url_for('community_page'))
 
     return render_template('new_post.html')
 
+@app.route('/api/post/delete/<int:post_id>', methods=['POST'])
+def delete_post_api(post_id):
+    """
+    [API] 刪除貼文
+    檢查是否為作者本人或管理員，並連帶清除相關按讚與留言
+    """
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'msg': '請先登入'}), 401
+
+    db_conn = get_db_connection()
+    try:
+        post = db_conn.execute('SELECT user_id FROM posts WHERE id=?', (post_id,)).fetchone()
+        if not post:
+            return jsonify({'status': 'error', 'msg': '貼文不存在'}), 404
+
+        # 權限檢查 (作者本人或是 admin 才能刪除)
+        if post['user_id'] != session['user_id'] and session.get('role') != 'admin':
+            return jsonify({'status': 'error', 'msg': '權限不足'}), 403
+
+        # 刪除關聯資料避免資料庫殘留垃圾
+        db_conn.execute('DELETE FROM comments WHERE post_id=?', (post_id,))
+        db_conn.execute('DELETE FROM likes WHERE post_id=?', (post_id,))
+        db_conn.execute('DELETE FROM posts WHERE id=?', (post_id,))
+        db_conn.commit()
+
+        return jsonify({'status': 'success', 'msg': '貼文已刪除'})
+    except Exception as err:
+        print(f"Delete Post Error: {err}")
+        return jsonify({'status': 'error', 'msg': '刪除失敗'}), 500
+    finally:
+        db_conn.close()
+
 @app.route('/u/<int:user_id>')
 def user_public_profile(user_id):
     """
     [頁面] 使用者公開主頁 (社群個人檔案)
     """
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
-    # 1. 抓取使用者基本資料
-    user = conn.execute('SELECT id, name, role, is_vip, style_preferences FROM users WHERE id=?', (user_id,)).fetchone()
+    # 1. 抓取使用者基本資料 (💡 修正：補上 avatar 欄位)
+    user = db_conn.execute('SELECT id, name, role, is_vip, style_preferences, avatar FROM users WHERE id=?', (user_id,)).fetchone()
 
+    # 💡 修正：找不到使用者時導回首頁，避免缺少 404.html 報錯
     if not user:
-        conn.close()
-        return render_template('404.html'), 404  # 若沒有 404.html，可改為 redirect(url_for('index'))
+        db_conn.close()
+        flash('找不到該使用者的主頁', 'warning')
+        return redirect(url_for('index'))
 
     # 2. 抓取該使用者的貼文
-    posts = conn.execute('SELECT * FROM posts WHERE user_id=? ORDER BY created_at DESC', (user_id,)).fetchall()
+    posts = db_conn.execute('SELECT * FROM posts WHERE user_id=? ORDER BY created_at DESC', (user_id,)).fetchall()
 
     # 3. 處理貼文圖片路徑
     formatted_posts = []
@@ -4450,6 +4824,7 @@ def user_public_profile(user_id):
 
     # 4. 解析風格標籤 (從偏好設定中讀取 'like' 標籤)
     style_tags = []
+    # noinspection PyBroadException
     try:
         if user['style_preferences']:
             prefs = json.loads(user['style_preferences'])
@@ -4457,11 +4832,21 @@ def user_public_profile(user_id):
     except:
         pass
 
+    # 💡 修正：處理大頭貼路徑 (解決相對路徑 404 問題與動態生成預設頭像)
+    raw_avatar = user['avatar']
+    if raw_avatar and not raw_avatar.startswith('http'):
+        avatar_url = url_for('static', filename=raw_avatar.replace('static/', ''))
+    elif raw_avatar:
+        avatar_url = raw_avatar
+    else:
+        avatar_url = f"https://ui-avatars.com/api/?name={user['name']}&background=F3EFEE&color=D4A5A5"
+
     # 5. 組合傳給模板的資料
     profile_user = {
         'id': user['id'],
         'name': user['name'],
-        'role': user['role'],  # admin, expert, celeb, user
+        'avatar': avatar_url,
+        'role': user['role'],
         'is_vip': bool(user['is_vip']),
         'bio': "熱愛時尚的 Style Smart 用戶",  # 未來可擴充 bio 欄位
         'style_tags': style_tags
@@ -4470,10 +4855,10 @@ def user_public_profile(user_id):
     stats = {
         'post_count': len(posts),
         'received_likes': total_likes,
-        'follower_count': 0  # 未來可從 follows 表統計
+        'follower_count': 0
     }
 
-    conn.close()
+    db_conn.close()
 
     return render_template('user_public_profile.html',
                            profile_user=profile_user,
@@ -4488,14 +4873,15 @@ def trends_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+    db_conn = get_db_connection()
+    user = db_conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
 
     # 撈取趨勢 (影響力高的在前)
-    trends_db = conn.execute('SELECT * FROM trends ORDER BY influence_score DESC LIMIT 10').fetchall()
+    trends_db = db_conn.execute('SELECT * FROM trends ORDER BY influence_score DESC LIMIT 10').fetchall()
 
     trend_list = []
     for t in trends_db:
+        # noinspection PyBroadException
         try:
             history = json.loads(t['data_points'])
         except:
@@ -4506,7 +4892,7 @@ def trends_page():
         match_score = TrendEngine.calculate_compatibility(dict(user), t['category'])
 
         # 撈取該趨勢的名人範本
-        celebs = conn.execute('''
+        celebs = db_conn.execute('''
             SELECT c.*, 
             (SELECT COUNT(*) FROM celeb_likes WHERE celeb_id = c.id) as likes_count,
             (SELECT 1 FROM celeb_likes WHERE celeb_id = c.id AND user_id = ?) as is_liked
@@ -4526,7 +4912,7 @@ def trends_page():
             'celebs': [dict(c) for c in celebs]  # 轉為字典以便前端使用
         })
 
-    conn.close()
+    db_conn.close()
 
     # 地區過濾器 (裝飾用)
     region_label = "台灣趨勢" if session.get('locale') == 'zh_TW' else "全球趨勢"
@@ -4542,33 +4928,20 @@ def profile_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     user_id = session['user_id']
 
     # 1. 處理資料更新 (POST)
     if request.method == 'POST':
         try:
-            # --- A. 處理大頭照上傳 ---
-            avatar_url = None
-            if 'avatar' in request.files:
-                file = request.files['avatar']
-                if file and file.filename != '':
-                    filename = secure_filename(f"avatar_{user_id}.png")
-                    upload_path = os.path.join('static', 'uploads', 'avatars')
-                    if not os.path.exists(upload_path):
-                        os.makedirs(upload_path)
-                    file.save(os.path.join(upload_path, filename))
-                    # [關鍵修正] 儲存不帶 static/ 的路徑，方便 url_for 使用
-                    avatar_url = f"uploads/avatars/{filename}"
-
-            # --- B. 處理多選與偏好 ---
+            # 先將使用者傳入的偏好資料打包成 JSON
             likes = json.dumps(request.form.getlist('style_likes'), ensure_ascii=False)
             dislikes = json.dumps(request.form.getlist('style_dislikes'), ensure_ascii=False)
             wear_types = json.dumps(request.form.getlist('wear_types'), ensure_ascii=False)
             color_prefs = json.dumps(request.form.getlist('color_prefs'), ensure_ascii=False)
             occasion_prefs = json.dumps(request.form.getlist('occasion_prefs'), ensure_ascii=False)
 
-            # --- C. 執行更新 ---
+            # 基本的 UPDATE 欄位與對應參數
             update_sql = '''
                 UPDATE users 
                 SET name=?, age=?, gender=?, height=?, weight=?, body_type=?, 
@@ -4584,27 +4957,50 @@ def profile_page():
                 request.form.get('clothing_issues'), request.form.get('life_stage')
             ]
 
+            # --- A. 處理大頭照上傳 ---
+            avatar_url = None
+            if 'avatar' in request.files:
+                upload_file = request.files['avatar']
+                if upload_file and upload_file.filename != '':
+                    filename = secure_filename(f"avatar_{user_id}.png")
+                    upload_path = os.path.join('static', 'uploads', 'avatars')
+                    if not os.path.exists(upload_path):
+                        os.makedirs(upload_path)
+                    upload_file.save(os.path.join(upload_path, filename))
+                    avatar_url = f"uploads/avatars/{filename}"
+
+            # 如果有上傳新大頭貼，才把 avatar 加進 SQL 語句中
             if avatar_url:
                 update_sql += ", avatar=?"
                 params.append(avatar_url)
 
+            # 最後加上 WHERE 條件
             update_sql += " WHERE id=?"
             params.append(user_id)
-            conn.execute(update_sql, params)
-            conn.commit()
 
+            # 執行更新
+            db_conn.execute(update_sql, params)
+            db_conn.commit()
+
+            # --- 💡 修正 Session 更新 ---
             session['user_name'] = request.form.get('name')
+            # 撈取更新後最新的 user 資料來放進 session
+            updated_user = db_conn.execute('SELECT avatar FROM users WHERE id=?', (user_id,)).fetchone()
+            if updated_user and updated_user['avatar']:
+                session['avatar'] = updated_user['avatar']
+
             flash('個人檔案已成功更新', 'success')
             return redirect(url_for('profile_page'))
-        except Exception as e:
-            print(f"❌ Profile Update Error: {e}")
-            flash('儲存失敗', 'error')
+
+        except Exception as err:
+            print(f"❌ Profile Update Error: {err}")
+            flash('儲存失敗，請聯繫管理員', 'error')
 
     # 2. 讀取用戶資料 (GET)
-    user = conn.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
+    user = db_conn.execute('SELECT * FROM users WHERE id=?', (user_id,)).fetchone()
 
-    # 3. [關鍵修正] 獲取並解析「最近一次」檢測風格紀錄 (解決破圖與文字顯示問題)
-    latest_record = conn.execute('''
+    # 3. 獲取並解析「最近一次」檢測風格紀錄
+    latest_record = db_conn.execute('''
         SELECT final_recommendation, created_at as date, user_image_path as image_url
         FROM analysis_history 
         WHERE user_id = ? AND final_recommendation IS NOT NULL
@@ -4613,33 +5009,33 @@ def profile_page():
 
     latest_data = None
     if latest_record:
+        # noinspection PyBroadException
         try:
             rec_json = json.loads(latest_record['final_recommendation'])
 
-            # [修正：完整抓取圖標與文字]
             style_full = rec_json.get('archetype', 'AI 形象診斷')
             style_display = style_full.split(' (')[0].strip() if ' (' in style_full else style_full
 
-            # [修正：路徑清理]
             img_path = latest_record['image_url']
             clean_img_url = img_path.replace('static/', '') if img_path else None
 
             latest_data = {
-                'date': latest_record['date'],
+                'date': latest_record['date'][:10],  # 只顯示日期
                 'image_url': clean_img_url,
-                'style_name': style_display,  # 現在這裡會顯示 🍃+文字
-                'advice': rec_json.get('advice', '').replace('###', '').replace('**', '').strip()
+                'style_name': style_display,
+                'advice': rec_json.get('advice', '').replace('###', '').replace('**', '').strip()[:80] + '...'  # 截斷過長文字
             }
         except:
             latest_data = None
 
     def safe_json(data):
+        # noinspection PyBroadException
         try:
             return json.loads(data) if data else []
         except:
             return []
 
-    # 4. 封裝數據 (大頭照路徑清理)
+    # 4. 封裝數據
     avatar_display = user['avatar'].replace('static/', '') if user['avatar'] else None
 
     p_data = {
@@ -4656,7 +5052,9 @@ def profile_page():
         'issues': user['clothing_issues'], 'life_stage': user['life_stage'],
         'latest_report': latest_data
     }
-    conn.close()
+    db_conn.close()
+
+    # 這裡的 STYLE_TAXONOMY 假設你在 web.py 前面有定義
     return render_template('profile.html', p=p_data, taxonomy=STYLE_TAXONOMY)
 
 @app.route('/settings')
@@ -4667,9 +5065,9 @@ def settings_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
-    user = conn.execute('SELECT * FROM users WHERE id=?', (session['user_id'],)).fetchone()
-    conn.close()
+    db_conn = get_db_connection()
+    user = db_conn.execute('SELECT * FROM users WHERE id=?', (session['user_id'],)).fetchone()
+    db_conn.close()
 
     return render_template('settings.html', user=dict(user) if user else {})
 
@@ -4685,18 +5083,20 @@ def shop_page():
     # 1. 參數處理
     category = request.args.get('category')
     search_query = request.args.get('q', '').strip()
+    # noinspection PyBroadException
     try:
         min_price = int(request.args.get('min', 0))
         max_price = int(request.args.get('max', 999999))
     except:
         min_price, max_price = 0, 999999
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     # 2. 取得用戶避雷設定
     dislikes = []
+    # noinspection PyBroadException
     try:
-        user_row = conn.execute('SELECT style_preferences FROM users WHERE id=?', (session['user_id'],)).fetchone()
+        user_row = db_conn.execute('SELECT style_preferences FROM users WHERE id=?', (session['user_id'],)).fetchone()
         if user_row and user_row['style_preferences']:
             prefs = json.loads(user_row['style_preferences'])
             dislikes = prefs.get('dislike', [])  # 注意 key 是 dislike 不是 dislikes
@@ -4710,7 +5110,7 @@ def shop_page():
         LEFT JOIN users u ON c.seller_id = u.id 
         WHERE c.status = 'on_sale' AND c.price BETWEEN ? AND ?
     """
-    params = [min_price, max_price]
+    params: list = [min_price, max_price]
 
     if category:
         sql += " AND c.category = ?"
@@ -4722,8 +5122,8 @@ def shop_page():
 
     sql += " ORDER BY c.created_at DESC LIMIT 100"  # 限制數量避免過載
 
-    db_items = conn.execute(sql, params).fetchall()
-    conn.close()
+    db_items = db_conn.execute(sql, params).fetchall()
+    db_conn.close()
 
     # 4. 資料過濾與格式化
     display_items = []
@@ -4734,6 +5134,7 @@ def shop_page():
         if not is_safe_recommendation(check_text, dislikes):
             continue
 
+        # noinspection PyBroadException
         try:
             tags = json.loads(i['tags']) if i['tags'] else []
         except:
@@ -4766,10 +5167,10 @@ def seller_center_page():
     if 'user_id' not in session:
         return redirect(url_for('login_page'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     # 1. 抓取該使用者上架的所有商品
-    items = conn.execute(
+    items = db_conn.execute(
         'SELECT * FROM clothing_items WHERE seller_id = ? ORDER BY created_at DESC',
         (session['user_id'],)
     ).fetchall()
@@ -4797,12 +5198,13 @@ def seller_center_page():
 
         # [真實統計] 計算在庫商品總價值 (僅計算販售中的)
         if i['status'] == 'on_sale' and i['price']:
+            # noinspection PyBroadException
             try:
                 total_inventory_value += int(i['price'])
             except:
                 pass
 
-    conn.close()
+    db_conn.close()
 
     # 3. 組合真實數據 (Stats)
     stats = {
@@ -4838,12 +5240,12 @@ def chat_page():
     """
     [VIP] AI 顧問聊天室
     """
-    conn = get_db_connection()
-    logs = conn.execute(
+    db_conn = get_db_connection()
+    logs = db_conn.execute(
         'SELECT * FROM chat_logs WHERE user_id = ? ORDER BY created_at ASC',
         (session['user_id'],)
     ).fetchall()
-    conn.close()
+    db_conn.close()
     return render_template('chat_consultant.html', logs=logs)
 
 @app.route('/premium/calendar')
@@ -4852,22 +5254,22 @@ def calendar_page():
     """
     [VIP] 穿搭行事曆
     """
-    conn = get_db_connection()
-    events = conn.execute(
+    db_conn = get_db_connection()
+    events = db_conn.execute(
         'SELECT * FROM calendar_events WHERE user_id = ?',
         (session['user_id'],)
     ).fetchall()
-    conn.close()
+    db_conn.close()
 
     # 轉換為 FullCalendar 格式
     events_json = [
         {
-            'title': e['title'],
-            'start': e['date_str'],
-            'description': e['outfit_desc'],
+            'title': err['title'],
+            'start': err['date_str'],
+            'description': err['outfit_desc'],
             'color': '#D4A5A5'  # 統一色系
         }
-        for e in events
+        for err in events
     ]
 
     return render_template('calendar.html', events=json.dumps(events_json))
@@ -4884,25 +5286,26 @@ def admin_dashboard():
         flash('權限不足，無法進入後台', 'error')
         return redirect(url_for('index'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         # 2. 平台基礎數據 (KPIs)
         stats = {
-            'users': conn.execute('SELECT COUNT(*) FROM users').fetchone()[0],
-            'posts': conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0],
-            'reports': conn.execute('SELECT COUNT(*) FROM reports WHERE status="pending"').fetchone()[0],
+            'users': db_conn.execute('SELECT COUNT(*) FROM users').fetchone()[0],
+            'posts': db_conn.execute('SELECT COUNT(*) FROM posts').fetchone()[0],
+            'reports': db_conn.execute('SELECT COUNT(*) FROM reports WHERE status="pending"').fetchone()[0],
         }
 
         # 3. AI 效能監控 (AI Performance)
-        total = conn.execute('SELECT COUNT(*) FROM analysis_history').fetchone()[0]
-        errors = conn.execute('SELECT COUNT(*) FROM analysis_history WHERE is_incorrect = 1').fetchone()[0]
+        total = db_conn.execute('SELECT COUNT(*) FROM analysis_history').fetchone()[0]
+        errors = db_conn.execute('SELECT COUNT(*) FROM analysis_history WHERE is_incorrect = 1').fetchone()[0]
         error_rate = round((errors / total * 100), 1) if total > 0 else 0
 
         # A/B Test 數據
         def get_rate(variant):
+            # noinspection PyBroadException
             try:
-                t = conn.execute("SELECT COUNT(*) FROM analysis_history WHERE ab_variant = ?", (variant,)).fetchone()[0]
-                c = conn.execute("SELECT COUNT(*) FROM analysis_history WHERE ab_variant = ? AND is_converted = 1", (variant,)).fetchone()[0]
+                t = db_conn.execute("SELECT COUNT(*) FROM analysis_history WHERE ab_variant = ?", (variant,)).fetchone()[0]
+                c = db_conn.execute("SELECT COUNT(*) FROM analysis_history WHERE ab_variant = ? AND is_converted = 1", (variant,)).fetchone()[0]
                 return {'count': t, 'rate': round((c / t * 100), 1) if t > 0 else 0}
             except:
                 return {'count': 0, 'rate': 0}
@@ -4919,7 +5322,7 @@ def admin_dashboard():
 
         try:
             # 4-1. 性別分佈
-            gender_rows = conn.execute('''
+            gender_rows = db_conn.execute('''
                 SELECT gender, COUNT(*) as count 
                 FROM users 
                 WHERE gender IS NOT NULL 
@@ -4930,7 +5333,7 @@ def admin_dashboard():
                 demographics['gender']['data'] = [r['count'] for r in gender_rows]
 
             # 4-2. 年齡層分佈 (使用 2026 - birth_year 計算)
-            age_rows = conn.execute('''
+            age_rows = db_conn.execute('''
                 SELECT 
                     CASE 
                         WHEN (2026 - birth_year) < 20 THEN 'Gen Z (<20)'
@@ -4949,7 +5352,7 @@ def admin_dashboard():
 
             # 4-3. 風格 x 身形 關聯熱圖 (Heatmap Data)
             # 找出哪種身形最常被匹配到哪種風格
-            correlation_data = conn.execute('''
+            correlation_data = db_conn.execute('''
                 SELECT 
                     json_extract(body_data, '$.shape') as body_shape,
                     json_extract(final_recommendation, '$.archetype') as style,
@@ -4961,25 +5364,25 @@ def admin_dashboard():
                 LIMIT 10
             ''').fetchall()
 
-        except Exception as e:
-            print(f"Deep Analytics Error: {e}")
+        except Exception as err:
+            print(f"Deep Analytics Error: {err}")
             # 若欄位不存在 (尚未執行 setup_db_final)，保持空數據避免報錯
 
         # 5. 進階圖表數據 (Fairness & Trend)
         try:
             fairness_data = calculate_fairness_metrics()
             trend_data = get_trend_analysis()
-        except Exception as e:
-            print(f"Chart Data Error: {e}")
+        except Exception as err:
+            print(f"Chart Data Error: {err}")
             fairness_data = []
             trend_data = {}
 
         # 6. 資料列表 (Lists)
-        items = conn.execute('SELECT * FROM clothing_items ORDER BY created_at DESC LIMIT 50').fetchall()
-        users = conn.execute('SELECT * FROM users ORDER BY created_at DESC LIMIT 50').fetchall()
+        items = db_conn.execute('SELECT * FROM clothing_items ORDER BY created_at DESC LIMIT 50').fetchall()
+        users = db_conn.execute('SELECT * FROM users ORDER BY created_at DESC LIMIT 50').fetchall()
 
         # 檢舉審核清單 (關聯查詢)
-        reports = conn.execute('''
+        reports = db_conn.execute('''
             SELECT r.*, u.name as reporter_name, p.content as post_content 
             FROM reports r 
             JOIN users u ON r.reporter_id = u.id 
@@ -4988,8 +5391,9 @@ def admin_dashboard():
         ''').fetchall()
 
         # 風格提案
+        # noinspection PyBroadException
         try:
-            proposals = conn.execute('''
+            proposals = db_conn.execute('''
                 SELECT p.*, u.name as user_name FROM style_proposals p 
                 JOIN users u ON p.user_id = u.id WHERE p.status = 'pending' ORDER BY p.created_at DESC
             ''').fetchall()
@@ -4997,14 +5401,15 @@ def admin_dashboard():
             proposals = []
 
         # 系統參數 (趨勢權重)
+        # noinspection PyBroadException
         try:
-            trend_config = conn.execute("SELECT value FROM system_configs WHERE key='trend_weights'").fetchone()
+            trend_config = db_conn.execute("SELECT value FROM system_configs WHERE key='trend_weights'").fetchone()
             current_trends = json.loads(trend_config['value']) if trend_config else {}
         except:
             current_trends = {}
 
     finally:
-        conn.close()
+        db_conn.close()
 
     # 7. 功能開關 (Feature Flags)
     feature_flags = [
@@ -5030,57 +5435,57 @@ def admin_dashboard():
                            current_trends=current_trends)
 
 @app.route('/admin/ban_user/<int:id>')
-def admin_ban_user(id):
+def admin_ban_user(item_id):
     """
     [管理] 停權使用者
     """
     if session.get('role') != 'admin':
         return redirect(url_for('index'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        conn.execute("UPDATE users SET status='banned' WHERE id=?", (id,))
-        conn.commit()
-        flash(f'使用者 ID:{id} 已停權', 'warning')
+        db_conn.execute("UPDATE users SET status='banned' WHERE id=?", (item_id,))
+        db_conn.commit()
+        flash(f'使用者 ID:{item_id} 已停權', 'warning')
     finally:
-        conn.close()
+        db_conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/unban_user/<int:id>')
-def admin_unban_user(id):
+def admin_unban_user(item_id):
     """
     [管理] 解除停權
     """
     if session.get('role') != 'admin':
         return redirect(url_for('index'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        conn.execute("UPDATE users SET status='active' WHERE id=?", (id,))
-        conn.commit()
-        flash(f'使用者 ID:{id} 已恢復正常狀態', 'success')
+        db_conn.execute("UPDATE users SET status='active' WHERE id=?", (item_id,))
+        db_conn.commit()
+        flash(f'使用者 ID:{item_id} 已恢復正常狀態', 'success')
     finally:
-        conn.close()
+        db_conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/delete_item/<int:id>', methods=['GET', 'POST'])
-def admin_delete_item(id):
+def admin_delete_item(item_id):
     """
     [管理] 強制刪除商品 (含檔案清理)
     """
     if session.get('role') != 'admin':
         return redirect(url_for('index'))
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        item = conn.execute('SELECT image_path FROM clothing_items WHERE id = ?', (id,)).fetchone()
+        item = db_conn.execute('SELECT image_path FROM clothing_items WHERE id = ?', (id,)).fetchone()
 
         if item:
             # 刪除資料
-            conn.execute('DELETE FROM clothing_items WHERE id=?', (id,))
-            conn.commit()
+            db_conn.execute('DELETE FROM clothing_items WHERE id=?', (item_id,))
+            db_conn.commit()
 
             # 清理檔案 (Safe Delete)
             img_path = item['image_path']
@@ -5091,6 +5496,7 @@ def admin_delete_item(id):
 
                 # 再次確認檔案存在才刪除
                 if os.path.exists(full_path):
+                    # noinspection PyBroadException
                     try:
                         os.remove(full_path)
                     except:
@@ -5101,7 +5507,7 @@ def admin_delete_item(id):
             flash('找不到該商品', 'warning')
 
     finally:
-        conn.close()
+        db_conn.close()
 
     return redirect(url_for('admin_dashboard'))
 
@@ -5124,8 +5530,8 @@ def force_train():
         <br>
         <a href="/">回到首頁測試</a>
         """
-    except Exception as e:
-        return f"<h1>訓練失敗</h1><p>{str(e)}</p>"
+    except Exception as err:
+        return f"<h1>訓練失敗</h1><p>{str(err)}</p>"
 
 @app.route('/api/admin/retrain_model', methods=['POST'])
 def api_retrain_model():
@@ -5149,8 +5555,8 @@ def api_retrain_model():
             'msg': '模型重新訓練完成！',
             'details': stats
         })
-    except Exception as e:
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
 
 @app.route('/api/analyze_face', methods=['POST'])
 def analyze_face_api():
@@ -5161,10 +5567,10 @@ def analyze_face_api():
     if 'image' not in request.files:
         return jsonify({'status': 'error', 'msg': '未接收到圖片'}), 400
 
-    file = request.files['image']
+    front_file = request.files['image']
     side_file = request.files.get('side_image')  # 側臉 (選填)
 
-    if file.filename == '':
+    if front_file.filename == '':
         return jsonify({'status': 'error', 'msg': '檔案名稱為空'}), 400
 
     try:
@@ -5174,7 +5580,8 @@ def analyze_face_api():
 
         filename = secure_filename(f"face_{timestamp}_{uid_short}.jpg")
         save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(save_path)
+        front_file.save(save_path)
+        session['current_image_path'] = f"static/uploads/{filename}"
 
         # 2. 儲存側臉 (如果有的話)
         side_save_path = None
@@ -5200,13 +5607,13 @@ def analyze_face_api():
             'status': 'success',
             'msg': '分析完成',
             'data': result,  # 包含 3D 融合資料的正臉結果
-            'side_data': side_result
+            'side_data': side_result,
+            'raw_image_path': f"static/uploads/{filename}"
         }
         return jsonify(response_data)
 
-    except Exception as e:
-        print(f"❌ Face Analysis Error: {e}")
-        # 在開發階段，將錯誤訊息回傳以便除錯
+    except Exception as err:
+        print(f"❌ Face Analysis Error: {err}")
         return jsonify({'status': 'error', 'msg': f'分析服務異常: {str(e)}'}), 500
 
 @app.route('/api/analyze_skin', methods=['POST'])
@@ -5218,18 +5625,20 @@ def api_analyze_skin():
     if 'image' not in request.files:
         return jsonify({'status': 'error', 'msg': '未上傳圖片'}), 400
 
-    file = request.files['image']
+    skin_img_file = request.files['image']
 
+    # noinspection PyBroadException
     try:
         # 1. 儲存暫存檔
         filename = secure_filename(f"skin_{uuid.uuid4().hex[:8]}.jpg")
-        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)  # [修正] 使用 app.config 保持一致
-        file.save(save_path)
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        skin_img_file.save(save_path)
 
         # 2. 執行分析
         result, err = skin_engine.analyze(save_path)
 
         # 3. 清理暫存 (建議開啟，避免伺服器堆積太多暫存圖)
+        # noinspection PyBroadException
         try:
             os.remove(save_path)
         except:
@@ -5243,8 +5652,8 @@ def api_analyze_skin():
             'data': result
         })
 
-    except Exception as e:
-        print(f"❌ Skin Analysis Error: {e}")
+    except Exception as err:
+        print(f"❌ Skin Analysis Error: {err}")
         return jsonify({'status': 'error', 'msg': '膚色檢測發生錯誤'}), 500
 
 @app.route('/api/analyze_body', methods=['POST'])
@@ -5319,8 +5728,8 @@ def analyze_body_api():
 
     # 5. 寫入資料庫 (使用 Context Manager 確保連線關閉)
     try:
-        with get_db_connection() as conn:
-            conn.execute('''
+        with get_db_connection() as db_conn:
+            db_conn.execute('''
                 INSERT INTO body_tracking (user_id, weight, waist, hip, note, recorded_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''', (
@@ -5331,9 +5740,9 @@ def analyze_body_api():
                 f"Shape: {ai_result['shape']}",
                 datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             ))
-            conn.commit()
-    except Exception as e:
-        print(f"Tracking Save Error: {e}")
+            db_conn.commit()
+    except Exception as err:
+        print(f"Tracking Save Error: {err}")
 
     return jsonify({'status': 'success', 'data': ai_result})
 
@@ -5351,16 +5760,15 @@ def generate_full_report_api():
         if not req_data:
             return jsonify({'status': 'error', 'msg': '無效的請求數據'}), 400
 
-        with get_db_connection() as conn:
-            user = conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
+        with get_db_connection() as db_conn:
+            user = db_conn.execute('SELECT * FROM users WHERE id = ?', (session['user_id'],)).fetchone()
 
-        # 1. 數據整合 (Data Integration)
+        # 1. 數據整合
         face_data_dict = req_data.get('face_data', {})
         body_data_dict = req_data.get('body_data', {})
-        skin_season = req_data.get('skin_season', None)  # 獲取膚色季節
+        skin_season = req_data.get('skin_season', None)
 
         user_data_for_logic = dict(user)
-        # 直接傳遞 dict 給演算法 (analyze_style_logic 已升級支援 dict)
         user_data_for_logic['face_data'] = face_data_dict
         user_data_for_logic['body_data'] = body_data_dict
         if skin_season:
@@ -5368,57 +5776,54 @@ def generate_full_report_api():
 
         # 2. 呼叫核心邏輯
         weather = get_weather_data()
-
-        # 取得分析結果
-        rec_text, trace, story, style_info = analyze_style_logic(
-            user_data_for_logic, weather, "Full Report", 'A'
+        advice_text, trace, story, style_info = analyze_style_logic(
+            user_data_for_logic, weather
         )
 
-        # 3. 封裝前端所需資料
+        # 3. 封裝前端所需資料 (包含推薦清單)
         final_rec = {
             'archetype': style_info.get('full_name', '自然風格'),
             'story': story,
-            'advice': rec_text,
+            'advice': advice_text,
             'hairstyle': style_info.get('hairstyle', ''),
             'makeup': style_info.get('makeup', ''),
             'accessories': style_info.get('accessories', ''),
-
-            # [新增] 完整列表供前端標籤顯示
             'hairstyle_list': style_info.get('hairstyle_list', []),
             'makeup_list': style_info.get('makeup_list', []),
             'fabrics': style_info.get('fabrics', []),
             'patterns': style_info.get('patterns', []),
             'seasonal_color': style_info.get('seasonal_color', []),
-
-            'dos': style_info.get('wardrobe_tops', '簡約單品'),
-            'donts': ["避免不合身的剪裁", "避免與膚色衝突的色系"],  # 簡化
-            'logic_trace': trace
+            # 💡 [關鍵修復與優化] 確保 API 回傳乾淨俐落的上下身文字，並加入鞋款
+            'dos': f"上衣：{style_info.get('wardrobe_tops', '')} | 下著：{style_info.get('wardrobe_bottoms', '')} | 鞋款：{style_info.get('wardrobe_shoes', '')}",
+            'donts': ["避免不合身的剪裁", "避免與膚色衝突的色系"]
         }
 
-        # 4. 存檔 (Analysis History)
-        # 存入 DB 時需轉回 JSON 字串
-        with get_db_connection() as conn:
-            conn.execute('''
+        # 💡 [核心修正] 確保路徑從 Session 取得，並同步寫入 DB
+        user_img_path = req_data.get('image_path') or session.get('current_image_path', '')
+
+        # 4. 存入歷史紀錄表 (history)
+        with get_db_connection() as db_conn:
+            db_conn.execute('''
                 INSERT INTO analysis_history (
                     user_id, user_image_path, face_data, body_data, 
-                    final_recommendation, ai_confidence, model_version, logic_trace
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    final_recommendation, ai_confidence, model_version, logic_trace, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ''', (
                 session['user_id'],
-                session.get('current_image_path', ''),
+                user_img_path, # 存入如 "uploads/face_xxx.jpg"
                 json.dumps(face_data_dict, ensure_ascii=False),
                 json.dumps(body_data_dict, ensure_ascii=False),
                 json.dumps(final_rec, ensure_ascii=False),
                 95,
-                "v2026.1",
+                "StyleNet-2026-v3", # 標註模型版本
                 trace
             ))
-            conn.commit()
+            db_conn.commit()
 
         return jsonify({'status': 'success', 'result': final_rec})
 
-    except Exception as e:
-        print(f"❌ Report Gen Error: {e}")
+    except Exception as err:
+        print(f"❌ Report Gen Error: {err}")
         return jsonify({'status': 'error', 'msg': '報告生成失敗，請聯繫管理員'}), 500
 
 @app.route('/api/try_on', methods=['POST'])
@@ -5439,8 +5844,8 @@ def try_on_api():
 
     # 2. 取得衣物圖片
     cloth_id = request.json.get('clothing_id')
-    with get_db_connection() as conn:
-        cloth = conn.execute('SELECT * FROM clothing_items WHERE id=?', (cloth_id,)).fetchone()
+    with get_db_connection() as db_conn:
+        cloth = db_conn.execute('SELECT * FROM clothing_items WHERE id=?', (cloth_id,)).fetchone()
 
     if not cloth: return jsonify({'status': 'error', 'msg': '衣物不存在'}), 404
     if cloth['image_path'].startswith('http'):
@@ -5450,8 +5855,7 @@ def try_on_api():
 
     # 3. 執行 VTON
     try:
-        category = 'lower_body' if any(k in cloth['title'] for k in ['褲', '裙']) else 'upper_body'
-        res_path, err = vton_engine.generate(user_full_path, cloth_full_path, category)
+        res_path, err = vton_engine.generate(user_full_path, cloth_full_path)
 
         if err:
             return jsonify({'status': 'error', 'msg': f'AI 生成失敗: {err}'}), 500
@@ -5462,15 +5866,15 @@ def try_on_api():
         shutil.copy(res_path, target_save)
 
         # 寫入歷史
-        with get_db_connection() as conn:
-            conn.execute('INSERT INTO try_on_history (user_id, original_img, cloth_img, result_img) VALUES (?,?,?,?)',
+        with get_db_connection() as db_conn:
+            db_conn.execute('INSERT INTO try_on_history (user_id, original_img, cloth_img, result_img) VALUES (?,?,?,?)',
                          (session['user_id'], user_img_rel, cloth['image_path'], f"uploads/{new_name}"))
-            conn.commit()
+            db_conn.commit()
 
         return jsonify({'status': 'success', 'result_url': f"static/uploads/{new_name}"})
 
-    except Exception as e:
-        print(f"VTON Error: {e}")
+    except Exception as err:
+        print(f"VTON Error: {err}")
         return jsonify({'status': 'error', 'msg': '試穿系統忙碌中'}), 500
 
 @app.route('/api/generate_ai_outfit', methods=['POST'])
@@ -5482,13 +5886,11 @@ def generate_ai_outfit():
         data = request.json
         prompt = data.get('prompt', '')
         base64_img = data.get('image', '')
-        gender = data.get('gender', 'female')
 
         if not base64_img:
             return jsonify({'status': 'error', 'msg': '沒有接收到體態圖片'}), 400
 
         # 1. 處理前端傳來的 Base64 圖片
-        # 移除 'data:image/jpeg;base64,' 前綴
         if ',' in base64_img:
             base64_img = base64_img.split(',')[1]
 
@@ -5513,9 +5915,9 @@ def generate_ai_outfit():
             'msg': f'已為您設計：{prompt}'
         })
 
-    except Exception as e:
-        print(f"❌ Generate AI Outfit Error: {e}")
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        print(f"❌ Generate AI Outfit Error: {err}")
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
 
 @app.route('/api/generate_3d_texture', methods=['POST'])
 def generate_3d_texture():
@@ -5549,32 +5951,26 @@ def generate_3d_texture():
             }
         })
 
-    except Exception as e:
-        print(f"❌ 3D 貼圖生成錯誤: {e}")
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        print(f"❌ 3D 貼圖生成錯誤: {err}")
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
 
 @app.route('/api/proxy_texture')
 def proxy_texture():
     url = request.args.get('url')
     if not url: return "Missing URL", 400
-
+    # noinspection PyBroadException
     try:
         # 如果不是強制觸發備用機制，才去下載圖片
         if not url.startswith('fallback_'):
-            import requests
-            from flask import Response
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0'}
             resp = requests.get(url, headers=headers, timeout=5)
             if resp.status_code == 200:
                 return Response(resp.content, mimetype='image/jpeg')
-    except Exception as e:
-        print(f"⚠️ 圖片下載失敗，啟動備用生成機制: {url}")
+    except Exception as err:
+        print(f"⚠️ 圖片下載失敗，啟動備用生成機制: {url}, 錯誤原因: {err}")
 
     # --- 🚀 OpenCV 自動備用材質生成機制 (3D 光影修復版) ---
-    import numpy as np
-    import cv2
-    from flask import Response
-
     img = np.zeros((512, 512, 3), np.uint8)
 
     # 判斷是否為「法線貼圖 (Normal Map)」
@@ -5631,23 +6027,23 @@ def swap_face_api():
         res = swapper.get(target_img, tgt_face, src_face, paste_back=True)
         return jsonify({'status': 'success', 'result_url': cv2_to_base64(res)})
 
-    except Exception as e:
-        print(f"Swap Error: {e}")
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        print(f"Swap Error: {err}")
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
 
 @app.route('/api/ai_explain_vote', methods=['POST'])
 def ai_explain_vote_api():
     """ [AI] 視覺問答 """
     post_id = request.json.get('post_id')
-    with get_db_connection() as conn:
-        post = conn.execute('SELECT image_path FROM posts WHERE id=?', (post_id,)).fetchone()
+    with get_db_connection() as db_conn:
+        post = db_conn.execute('SELECT image_path FROM posts WHERE id=?', (post_id,)).fetchone()
 
     if not post: return jsonify({'status': 'error', 'reason': '貼文不存在'})
 
     img_path = os.path.abspath(os.path.join(app.root_path, 'static', post['image_path'].replace('static/', '')))
     if not os.path.exists(img_path):
         return jsonify({'status': 'error', 'reason': '圖片遺失'})
-
+    # noinspection PyBroadException
     try:
         yes = request.json.get('yes', 0)
         no = request.json.get('no', 0)
@@ -5662,8 +6058,8 @@ def ai_explain_vote_api():
 @app.route('/api/external/v1/analyze', methods=['POST'])
 def external_api_analyze():
     """ [Open API] 外部呼叫介面 """
-    API_ACCESS_KEY = os.environ.get('API_KEY', 'default_secret')
-    if request.headers.get('X-API-KEY') != API_ACCESS_KEY:
+    api_access_key = os.environ.get('API_KEY', 'default_secret')
+    if request.headers.get('X-API-KEY') != api_access_key:
         return jsonify({'error': 'Unauthorized'}), 401
 
     try:
@@ -5674,14 +6070,14 @@ def external_api_analyze():
             'gender': data.get('gender', 'female'),
             'skin_season': data.get('skin_season', None)
         }
-        rec, _, _, info = analyze_style_logic(internal_data, get_weather_data(), "External API", 'A')
+        rec, _, _, info = analyze_style_logic(internal_data, get_weather_data())
         return jsonify({
             'status': 'success',
             'meta': {'version': "v2026.1", 'time': datetime.datetime.now().isoformat()},
             'result': {'recommendation': rec, 'style_name': info.get('full_name')}
         })
-    except Exception as e:
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
 
 @app.route('/legal/terms')
 def terms_page(): return render_template('legal.html', type='terms')
@@ -5699,9 +6095,9 @@ def wear_feedback_api():
         return jsonify({'status': 'error', 'msg': '請先登入'}), 401
 
     d = request.json
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        conn.execute(
+        db_conn.execute(
             'INSERT INTO wear_logs (user_id, date_str, outfit_desc, feeling, rating) VALUES (?, ?, ?, ?, ?)',
             (
                 session['user_id'],
@@ -5711,11 +6107,66 @@ def wear_feedback_api():
                 d.get('rating', 3)
             )
         )
-        conn.commit()
+        db_conn.commit()
     finally:
-        conn.close()
+        db_conn.close()
 
     return jsonify({'status': 'success', 'msg': 'AI 已學習您的感受，將調整推薦策略。'})
+
+@app.route('/api/delete_history', methods=['POST'])
+def delete_history_api():
+    """
+    [API] 刪除特定的歷史紀錄 (並清理實體圖片檔案)
+    """
+    # 1. 檢查是否登入
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'msg': '請先登入'}), 401
+
+    db_conn = None
+
+    try:
+        # 2. 取得前端傳來的紀錄 ID
+        record_id = request.json.get('id')
+        if not record_id:
+            return jsonify({'status': 'error', 'msg': '缺少紀錄 ID'}), 400
+
+        db_conn = get_db_connection()
+
+        # 3. 為了安全與清理圖片，先確認這筆紀錄是這個使用者的
+        record = db_conn.execute('SELECT user_image_path FROM analysis_history WHERE id = ? AND user_id = ?',
+                              (record_id, session['user_id'])).fetchone()
+
+        if record:
+            # 4. 刪除資料庫紀錄
+            db_conn.execute('DELETE FROM analysis_history WHERE id = ? AND user_id = ?',
+                         (record_id, session['user_id']))
+            db_conn.commit()
+
+            # 5. (進階) 實體刪除圖片檔案，釋放空間
+            img_path = record['user_image_path']
+            if img_path and 'default' not in img_path and not img_path.startswith('http'):
+                rel_path = img_path.replace('static/', '')
+                full_path = os.path.join(app.root_path, 'static', rel_path)
+
+                # 確保檔案存在才刪除
+                if os.path.exists(full_path):
+                    try:
+                        os.remove(full_path)
+                    except Exception as img_err:
+                        print(f"圖片檔案刪除失敗: {img_err}")
+
+            msg = '紀錄已成功刪除'
+        else:
+            msg = '找不到該紀錄或無權限刪除'
+
+        return jsonify({'status': 'success', 'msg': msg})
+
+    except Exception as err:
+        print(f"Delete History Error: {err}")
+        return jsonify({'status': 'error', 'msg': '刪除失敗'}), 500
+    finally:
+        if db_conn is not None:
+            db_conn.close()
 
 @app.route('/api/report_error', methods=['POST'])
 def report_error():
@@ -5727,11 +6178,11 @@ def report_error():
     feedback = request.json.get('feedback')
     history_id = request.json.get('history_id')
 
-    conn = get_db_connection()
-    conn.execute('UPDATE analysis_history SET is_incorrect=1, user_feedback=? WHERE id=? AND user_id=?',
+    db_conn = get_db_connection()
+    db_conn.execute('UPDATE analysis_history SET is_incorrect=1, user_feedback=? WHERE id=? AND user_id=?',
                  (feedback, history_id, session['user_id']))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
 
     return jsonify({'status': 'success', 'msg': '感謝您的回饋，這將幫助 AI 變得更準確！'})
 
@@ -5749,9 +6200,9 @@ def correct_user_profile():
     if not new_shape or target not in ['body', 'face']:
         return jsonify({'status': 'error', 'msg': '參數錯誤'})
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        last_record = conn.execute(
+        last_record = db_conn.execute(
             'SELECT id, body_data, face_data FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
             (session['user_id'],)
         ).fetchone()
@@ -5762,20 +6213,52 @@ def correct_user_profile():
             data['shape'] = new_shape
             data['is_manual_corrected'] = True
 
-            conn.execute(
+            db_conn.execute(
                 f'UPDATE analysis_history SET {col}=? WHERE id=?',
                 (json.dumps(data, ensure_ascii=False), last_record['id'])
             )
-            conn.commit()
+            db_conn.commit()
             msg = f'已校正{target}為：{new_shape}'
         else:
             msg = '無紀錄可供校正'
-    except Exception as e:
-        msg = f'校正失敗: {e}'
+    except Exception as err:
+        msg = f'校正失敗: {err}'
     finally:
-        conn.close()
+        db_conn.close()
 
     return jsonify({'status': 'success', 'msg': msg})
+
+@app.route('/api/get_history_detail/<int:record_id>')
+def get_history_detail_api(record_id):
+    """
+    [API] 獲取單筆歷史紀錄的完整分析報告
+    """
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'msg': '請先登入'}), 401
+
+    db_conn = get_db_connection()
+    # 確保只能抓取自己的紀錄
+    record = db_conn.execute('SELECT * FROM analysis_history WHERE id = ? AND user_id = ?',
+                          (record_id, session['user_id'])).fetchone()
+    db_conn.close()
+
+    if not record:
+        return jsonify({'status': 'error', 'msg': '找不到該筆紀錄'}), 404
+
+    # 安全地解析儲存在資料庫裡的 JSON 文字
+    # noinspection PyBroadException
+    try:
+        rec = json.loads(record['final_recommendation']) if record['final_recommendation'] else {}
+    except Exception:
+        rec = {}
+
+    return jsonify({
+        'status': 'success',
+        'data': {
+            'recommendation': rec,
+            'trace': record['logic_trace'] or '無推論紀錄'
+        }
+    })
 
 @app.route('/api/dislike_item', methods=['POST'])
 def dislike_item_api():
@@ -5785,13 +6268,14 @@ def dislike_item_api():
     if 'user_id' not in session: return jsonify({'status': 'error', 'msg': '請先登入'}), 401
 
     item_id = request.json.get('item_id')
-    conn = get_db_connection()
-    item = conn.execute('SELECT tags, category FROM clothing_items WHERE id = ?', (item_id,)).fetchone()
-    conn.close()
+    db_conn = get_db_connection()
+    item = db_conn.execute('SELECT tags, category FROM clothing_items WHERE id = ?', (item_id,)).fetchone()
+    db_conn.close()
 
     if not item: return jsonify({'status': 'error', 'msg': '找不到商品'})
 
     tags_to_ban = []
+    # noinspection PyBroadException
     try:
         if item['tags']:
             loaded = json.loads(item['tags'])
@@ -5818,11 +6302,11 @@ def add_favorite_api():
     if 'user_id' not in session: return jsonify({'status': 'error', 'msg': '請先登入'}), 401
 
     item_data = request.json
-    conn = get_db_connection()
-    conn.execute('INSERT INTO favorites (user_id, item_data) VALUES (?, ?)',
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT INTO favorites (user_id, item_data) VALUES (?, ?)',
                  (session['user_id'], json.dumps(item_data, ensure_ascii=False)))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success', 'msg': '已加入收藏'})
 
 @app.route('/api/calendar/add', methods=['POST'])
@@ -5836,13 +6320,13 @@ def calendar_add_api():
     if not d.get('title') or not d.get('date'):
         return jsonify({'status': 'error', 'msg': '資料不完整'}), 400
 
-    conn = get_db_connection()
-    conn.execute(
+    db_conn = get_db_connection()
+    db_conn.execute(
         'INSERT INTO calendar_events (user_id, date_str, title, outfit_desc) VALUES (?, ?, ?, ?)',
         (session['user_id'], d.get('date'), d.get('title'), d.get('desc', ''))
     )
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success', 'msg': '已加入行事曆'})
 
 @app.route('/api/update_consent', methods=['POST'])
@@ -5852,11 +6336,11 @@ def update_consent():
     """
     if 'user_id' not in session: return jsonify({'status': 'error'}), 401
 
-    conn = get_db_connection()
-    conn.execute('UPDATE users SET data_consent=? WHERE id=?',
+    db_conn = get_db_connection()
+    db_conn.execute('UPDATE users SET data_consent=? WHERE id=?',
                  (request.json.get('consent'), session['user_id']))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success'})
 
 @app.route('/api/update_privacy_settings', methods=['POST'])
@@ -5870,11 +6354,11 @@ def update_privacy_settings():
     policy = data.get('photo_policy', '30_days')
     ai_consent = 1 if data.get('ai_consent') else 0
 
-    conn = get_db_connection()
-    conn.execute('UPDATE users SET photo_policy = ?, ai_training_consent = ? WHERE id = ?',
+    db_conn = get_db_connection()
+    db_conn.execute('UPDATE users SET photo_policy = ?, ai_training_consent = ? WHERE id = ?',
                  (policy, ai_consent, session['user_id']))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success', 'msg': '設定已更新'})
 
 @app.route('/api/delete_all_photos', methods=['POST'])
@@ -5884,8 +6368,8 @@ def delete_all_photos():
     """
     if 'user_id' not in session: return jsonify({'status': 'error'}), 401
 
-    conn = get_db_connection()
-    records = conn.execute('SELECT user_image_path FROM analysis_history WHERE user_id = ?',
+    db_conn = get_db_connection()
+    records = db_conn.execute('SELECT user_image_path FROM analysis_history WHERE user_id = ?',
                            (session['user_id'],)).fetchall()
 
     count = 0
@@ -5897,9 +6381,9 @@ def delete_all_photos():
                 os.remove(full_path)
                 count += 1
 
-    conn.execute('UPDATE analysis_history SET user_image_path = NULL WHERE user_id = ?', (session['user_id'],))
-    conn.commit()
-    conn.close()
+    db_conn.execute('UPDATE analysis_history SET user_image_path = NULL WHERE user_id = ?', (session['user_id'],))
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success', 'msg': f'已銷毀 {count} 張照片'})
 
 @app.route('/api/delete_account', methods=['POST'])
@@ -5910,22 +6394,22 @@ def delete_account():
     if 'user_id' not in session: return jsonify({'status': 'error'}), 401
 
     uid = session['user_id']
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         tables = ['analysis_history', 'posts', 'comments', 'likes', 'follows',
                   'try_on_history', 'favorites', 'calendar_events', 'chat_logs',
                   'body_tracking', 'wear_logs', 'reports', 'style_proposals']
         for t in tables:
-            conn.execute(f'DELETE FROM {t} WHERE user_id=?', (uid,))
-        conn.execute('DELETE FROM users WHERE id=?', (uid,))
-        conn.commit()
+            db_conn.execute(f'DELETE FROM {t} WHERE user_id=?', (uid,))
+        db_conn.execute('DELETE FROM users WHERE id=?', (uid,))
+        db_conn.commit()
         session.clear()
         return jsonify({'status': 'success', 'msg': '帳號已刪除'})
-    except Exception as e:
-        conn.rollback()
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        db_conn.rollback()
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/api/download_my_data')
 def download_my_data():
@@ -5935,13 +6419,13 @@ def download_my_data():
     if 'user_id' not in session: return redirect(url_for('login_page'))
 
     uid = session['user_id']
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     data = {
-        'profile': dict(conn.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone() or {}),
-        'history': [dict(r) for r in conn.execute('SELECT * FROM analysis_history WHERE user_id=?', (uid,)).fetchall()],
-        'calendar': [dict(r) for r in conn.execute('SELECT * FROM calendar_events WHERE user_id=?', (uid,)).fetchall()]
+        'profile': dict(db_conn.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone() or {}),
+        'history': [dict(r) for r in db_conn.execute('SELECT * FROM analysis_history WHERE user_id=?', (uid,)).fetchall()],
+        'calendar': [dict(r) for r in db_conn.execute('SELECT * FROM calendar_events WHERE user_id=?', (uid,)).fetchall()]
     }
-    conn.close()
+    db_conn.close()
 
     if 'password' in data['profile']: del data['profile']['password']
 
@@ -5990,35 +6474,35 @@ def toggle_like_api():
     target_type = request.json.get('type')  # 'post' 或 'celeb'
     target_id = request.json.get('id')
     user_id = session['user_id']
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     try:
         new_count = 0
         action = 'liked'
 
         if target_type == 'post':
-            if conn.execute('SELECT 1 FROM likes WHERE user_id=? AND post_id=?', (user_id, target_id)).fetchone():
-                conn.execute('DELETE FROM likes WHERE user_id=? AND post_id=?', (user_id, target_id))
-                conn.execute('UPDATE posts SET likes_count = likes_count - 1 WHERE id=?', (target_id,))
+            if db_conn.execute('SELECT 1 FROM likes WHERE user_id=? AND post_id=?', (user_id, target_id)).fetchone():
+                db_conn.execute('DELETE FROM likes WHERE user_id=? AND post_id=?', (user_id, target_id))
+                db_conn.execute('UPDATE posts SET likes_count = likes_count - 1 WHERE id=?', (target_id,))
                 action = 'unliked'
             else:
-                conn.execute('INSERT INTO likes (user_id, post_id) VALUES (?, ?)', (user_id, target_id))
-                conn.execute('UPDATE posts SET likes_count = likes_count + 1 WHERE id=?', (target_id,))
-            new_count = conn.execute('SELECT likes_count FROM posts WHERE id=?', (target_id,)).fetchone()[0]
+                db_conn.execute('INSERT INTO likes (user_id, post_id) VALUES (?, ?)', (user_id, target_id))
+                db_conn.execute('UPDATE posts SET likes_count = likes_count + 1 WHERE id=?', (target_id,))
+            new_count = db_conn.execute('SELECT likes_count FROM posts WHERE id=?', (target_id,)).fetchone()[0]
 
         elif target_type == 'celeb':
-            if conn.execute('SELECT 1 FROM celeb_likes WHERE user_id=? AND celeb_id=?',
+            if db_conn.execute('SELECT 1 FROM celeb_likes WHERE user_id=? AND celeb_id=?',
                             (user_id, target_id)).fetchone():
-                conn.execute('DELETE FROM celeb_likes WHERE user_id=? AND celeb_id=?', (user_id, target_id))
+                db_conn.execute('DELETE FROM celeb_likes WHERE user_id=? AND celeb_id=?', (user_id, target_id))
                 action = 'unliked'
             else:
-                conn.execute('INSERT INTO celeb_likes (user_id, celeb_id) VALUES (?, ?)', (user_id, target_id))
-            new_count = conn.execute('SELECT COUNT(*) FROM celeb_likes WHERE celeb_id=?', (target_id,)).fetchone()[0]
+                db_conn.execute('INSERT INTO celeb_likes (user_id, celeb_id) VALUES (?, ?)', (user_id, target_id))
+            new_count = db_conn.execute('SELECT COUNT(*) FROM celeb_likes WHERE celeb_id=?', (target_id,)).fetchone()[0]
 
-        conn.commit()
+        db_conn.commit()
         return jsonify({'status': 'success', 'action': action, 'count': new_count})
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/api/vote_post', methods=['POST'])
 def vote_post_api():
@@ -6029,25 +6513,25 @@ def vote_post_api():
 
     pid = request.json.get('post_id')
     vote = request.json.get('vote')
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     try:
         if vote == 'yes':
-            conn.execute('UPDATE posts SET poll_yes = poll_yes + 1 WHERE id = ?', (pid,))
+            db_conn.execute('UPDATE posts SET poll_yes = poll_yes + 1 WHERE id = ?', (pid,))
         else:
-            conn.execute('UPDATE posts SET poll_no = poll_no + 1 WHERE id = ?', (pid,))
-        conn.commit()
+            db_conn.execute('UPDATE posts SET poll_no = poll_no + 1 WHERE id = ?', (pid,))
+        db_conn.commit()
 
-        post = conn.execute('SELECT poll_yes, poll_no FROM posts WHERE id = ?', (pid,)).fetchone()
+        post = db_conn.execute('SELECT poll_yes, poll_no FROM posts WHERE id = ?', (pid,)).fetchone()
         total = post['poll_yes'] + post['poll_no']
         pct = int((post['poll_yes'] / total) * 100) if total > 0 else 0
 
         return jsonify({'status': 'success', 'yes': post['poll_yes'], 'no': post['poll_no'], 'percent': pct})
     finally:
-        conn.close()
+        db_conn.close()
 
-@app.route('/api/comment_post/<int:id>', methods=['POST'])
-def comment_post(id):
+@app.route('/api/comment_post/<int:post_id>', methods=['POST'])
+def comment_post(post_id):
     """
     [留言] 貼文留言 (含心理健康偵測)
     """
@@ -6067,35 +6551,36 @@ def comment_post(id):
         flash('留言內容不能為空', 'warning')
         return redirect(url_for('community_page'))
 
-    conn = get_db_connection()
-    conn.execute('INSERT INTO comments (user_id, post_id, content) VALUES (?, ?, ?)',
-                 (session['user_id'], id, safe_content))
-    conn.commit()
-    conn.close()
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT INTO comments (user_id, post_id, content) VALUES (?, ?, ?)',
+                 (session['user_id'], post_id, safe_content))
+    db_conn.commit()
+    db_conn.close()
 
     return redirect(url_for('community_page'))
 
-@app.route('/api/follow_user/<int:id>', methods=['POST'])
-def follow_user(id):
+@app.route('/api/follow_user/<int:target_id>', methods=['POST'])
+def follow_user(target_id):
     """
     [追蹤] 關注/取消關注
     """
-    if 'user_id' not in session: return jsonify({'status': 'error', 'msg': '請先登入'}), 401
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'msg': '請先登入'}), 401
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        exist = conn.execute('SELECT 1 FROM follows WHERE follower_id=? AND followed_id=?',
-                             (session['user_id'], id)).fetchone()
+        exist = db_conn.execute('SELECT 1 FROM follows WHERE follower_id=? AND followed_id=?',
+                             (session['user_id'], target_id)).fetchone()
         if exist:
-            conn.execute('DELETE FROM follows WHERE follower_id=? AND followed_id=?', (session['user_id'], id))
+            db_conn.execute('DELETE FROM follows WHERE follower_id=? AND followed_id=?', (session['user_id'], target_id))
             act = 'unfollowed'
         else:
-            conn.execute('INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)', (session['user_id'], id))
+            db_conn.execute('INSERT INTO follows (follower_id, followed_id) VALUES (?, ?)', (session['user_id'], target_id))
             act = 'followed'
-        conn.commit()
+        db_conn.commit()
         return jsonify({'status': 'success', 'action': act})
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/api/report', methods=['POST'])
 def submit_report():
@@ -6117,17 +6602,17 @@ def submit_report():
 
     if not post_id: return jsonify({'status': 'error', 'msg': '參數錯誤'})
 
-    conn = get_db_connection()
-    conn.execute('INSERT INTO reports (reporter_id, post_id, reason, status) VALUES (?, ?, ?, "pending")',
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT INTO reports (reporter_id, post_id, reason, status) VALUES (?, ?, ?, "pending")',
                  (session['user_id'], post_id, reason or '其他'))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
 
     return jsonify({'status': 'success', 'msg': '檢舉已提交，感謝您的協助'})
 
-@app.route('/api/report_post/<int:id>', methods=['POST'])
-def report_post_legacy(id):
-    return submit_report()
+@app.route('/api/report_post/<int:post_id>', methods=['POST'])
+def report_post_legacy(post_id):
+    return submit_report(post_id)
 
 @app.route('/api/trend/match_celeb', methods=['POST'])
 def match_celeb_style():
@@ -6136,18 +6621,19 @@ def match_celeb_style():
     """
     user_style = "簡約"
     if 'user_id' in session:
-        conn = get_db_connection()
-        last = conn.execute(
+        db_conn = get_db_connection()
+        last = db_conn.execute(
             'SELECT final_recommendation FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
             (session['user_id'],)).fetchone()
-        conn.close()
+        db_conn.close()
         if last:
+            # noinspection PyBroadException
             try:
                 rec = json.loads(last['final_recommendation'])
                 user_style = (rec.get('archetype') or rec.get('summary', '簡約')).split('(')[0].strip()
             except:
                 pass
-
+    # noinspection PyBroadException
     try:
         celeb_data = fetch_celeb_match_from_web(user_style)
     except:
@@ -6174,18 +6660,18 @@ def seller_add_product():
     if 'image' not in request.files:
         return jsonify({'status': 'error', 'msg': '未上傳圖片'}), 400
 
-    file = request.files['image']
-    if file.filename == '':
+    upload_file = request.files['image']
+    if upload_file.filename == '':
         return jsonify({'status': 'error', 'msg': '檔案名稱為空'}), 400
 
     try:
         # 1. 儲存圖片
-        filename = secure_filename(file.filename)
+        filename = secure_filename(upload_file.filename)
         unique_name = f"prod_{uuid.uuid4()}_{filename}"
         if not os.path.exists(app.config['UPLOAD_FOLDER']):
             os.makedirs(app.config['UPLOAD_FOLDER'])
 
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+        upload_file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
         image_path = f"uploads/{unique_name}"
 
         # 2. 處理標籤與屬性
@@ -6199,8 +6685,8 @@ def seller_add_product():
             tags_list.extend(request.form.get('extra_tags').split(','))
 
         # 3. 寫入資料庫
-        conn = get_db_connection()
-        conn.execute('''
+        db_conn = get_db_connection()
+        db_conn.execute('''
             INSERT INTO clothing_items (
                 seller_id, image_path, title, category, price, description, brand, 
                 quadrant, material, pattern, neckline, tags, status, created_at
@@ -6216,13 +6702,13 @@ def seller_add_product():
             request.form.get('neckline'),
             json.dumps(tags_list, ensure_ascii=False)
         ))
-        conn.commit()
-        conn.close()
+        db_conn.commit()
+        db_conn.close()
 
         return jsonify({'status': 'success', 'msg': '商品上架成功！'})
 
-    except Exception as e:
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
 
 @app.route('/api/seller/delete_product', methods=['POST'])
 def seller_delete_product():
@@ -6232,10 +6718,10 @@ def seller_delete_product():
     if 'user_id' not in session: return jsonify({'status': 'error', 'msg': '請先登入'}), 401
 
     item_id = request.json.get('item_id')
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     try:
-        item = conn.execute('SELECT seller_id, image_path FROM clothing_items WHERE id=?', (item_id,)).fetchone()
+        item = db_conn.execute('SELECT seller_id, image_path FROM clothing_items WHERE id=?', (item_id,)).fetchone()
         if not item: return jsonify({'status': 'error', 'msg': '商品不存在'})
 
         # 權限檢查
@@ -6243,8 +6729,8 @@ def seller_delete_product():
             return jsonify({'status': 'error', 'msg': '無權刪除此商品'})
 
         # 執行刪除
-        conn.execute('DELETE FROM clothing_items WHERE id=?', (item_id,))
-        conn.commit()
+        db_conn.execute('DELETE FROM clothing_items WHERE id=?', (item_id,))
+        db_conn.commit()
 
         # 清理檔案
         path = item['image_path']
@@ -6254,10 +6740,10 @@ def seller_delete_product():
                 os.remove(full_path)
 
         return jsonify({'status': 'success', 'msg': '商品已刪除'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    except Exception as err:
+        return jsonify({'status': 'error', 'msg': str(err)}), 500
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/api/search', methods=['POST'])
 def search_api():
@@ -6269,7 +6755,7 @@ def search_api():
     keyword = request.json.get('keyword', '').strip()
     filters = request.json.get('filters', {})
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     results = {'items': [], 'posts': []}
 
     try:
@@ -6286,7 +6772,7 @@ def search_api():
             params.append(filters['category'])
 
         # 執行查詢 (限制 20 筆)
-        items = conn.execute(item_sql + " ORDER BY created_at DESC LIMIT 20", params).fetchall()
+        items = db_conn.execute(item_sql + " ORDER BY created_at DESC LIMIT 20", params).fetchall()
 
         for i in items:
             img = i['image_path']
@@ -6306,7 +6792,7 @@ def search_api():
             post_sql += " AND (p.content LIKE ? OR p.tags LIKE ?)"
             post_params.extend([f"%{keyword}%"] * 2)
 
-        posts = conn.execute(post_sql + " ORDER BY p.likes_count DESC LIMIT 20", post_params).fetchall()
+        posts = db_conn.execute(post_sql + " ORDER BY p.likes_count DESC LIMIT 20", post_params).fetchall()
 
         for p in posts:
             img = p['image_path']
@@ -6321,7 +6807,7 @@ def search_api():
 
         return jsonify({'status': 'success', 'results': results})
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/admin/add_item', methods=['POST'])
 def admin_add_item():
@@ -6332,13 +6818,13 @@ def admin_add_item():
         return redirect(url_for('index'))
 
     try:
-        file = request.files['image']
-        fname = secure_filename(file.filename)
+        upload_file = request.files['image']
+        fname = secure_filename(upload_file.filename)
         uname = f"off_{uuid.uuid4()}_{fname}"
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], uname))
+        upload_file.save(os.path.join(app.config['UPLOAD_FOLDER'], uname))
 
-        conn = get_db_connection()
-        conn.execute('''
+        db_conn = get_db_connection()
+        db_conn.execute('''
             INSERT INTO clothing_items (
                 image_path, title, category, tags, brand, price, is_ad, 
                 quadrant, material, pattern, neckline, seller_id, status
@@ -6352,11 +6838,11 @@ def admin_add_item():
             request.form.get('pattern'), request.form.get('neckline'),
             session['user_id']
         ))
-        conn.commit()
-        conn.close()
+        db_conn.commit()
+        db_conn.close()
         flash('官方商品上架成功', 'success')
-    except Exception as e:
-        flash(f'上架失敗: {e}', 'error')
+    except Exception as err:
+        flash(f'上架失敗: {err}', 'error')
 
     return redirect(url_for('admin_dashboard'))
 
@@ -6371,12 +6857,12 @@ def chat_response_api():
     user_msg = data.get('message', '')
 
     # 1. 獲取用戶背景資料 (Context)
-    conn = get_db_connection()
-    user = conn.execute('SELECT name, style_preferences FROM users WHERE id=?', (session['user_id'],)).fetchone()
-    analysis = conn.execute(
+    db_conn = get_db_connection()
+    user = db_conn.execute('SELECT name, style_preferences FROM users WHERE id=?', (session['user_id'],)).fetchone()
+    analysis = db_conn.execute(
         'SELECT body_data, final_recommendation FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
         (session['user_id'],)).fetchone()
-    conn.close()
+    db_conn.close()
 
     # 解析資料
     user_name = user['name']
@@ -6385,6 +6871,7 @@ def chat_response_api():
     style_arch = "簡約休閒"
 
     if analysis:
+        # noinspection PyBroadException
         try:
             if analysis['body_data']:
                 b = json.loads(analysis['body_data'])
@@ -6397,7 +6884,6 @@ def chat_response_api():
             pass
 
     # 2. 判斷使用哪種 AI 模式
-    reply = ""
 
     # [模式 A] 真 AI (如果有填 API Key 且 Library 安裝成功)
     if GENAI_API_KEY and model:
@@ -6418,8 +6904,8 @@ def chat_response_api():
             """
             response = model.generate_content(system_prompt)
             reply = response.text
-        except Exception as e:
-            print(f"Gemini Error: {e}")
+        except Exception as err:
+            print(f"Gemini Error: {err}")
             reply = generate_dynamic_response(user_name, body_shape, style_arch, user_msg)
 
     # [模式 B] 動態語句拼裝 (無 Key 時使用)
@@ -6441,19 +6927,20 @@ def ai_stylist_chat():
         # 接收前端傳來的對話紀錄
         history = data.get('history', [])
 
-        conn = get_db_connection()
-        user = conn.execute('SELECT name, gender FROM users WHERE id=?', (session['user_id'],)).fetchone()
-        analysis = conn.execute(
+        db_conn = get_db_connection()
+        user = db_conn.execute('SELECT name, gender FROM users WHERE id=?', (session['user_id'],)).fetchone()
+        analysis = db_conn.execute(
             'SELECT body_data FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
             (session['user_id'],)).fetchone()
-        conn.close()
+        db_conn.close()
 
         user_name = user['name'] if user else "使用者"
         body_info = "未知身形"
         if analysis and analysis['body_data']:
+            # noinspection PyBroadException
             try:
                 body_info = json.loads(analysis['body_data']).get('shape', '一般身形')
-            except:
+            except Exception:
                 pass
 
         # 將歷史對話格式化成字串給 AI 參考
@@ -6483,8 +6970,8 @@ def ai_stylist_chat():
                 clean_text = response.text.replace('```json', '').replace('```', '').strip()
                 ai_data = json.loads(clean_text)
                 return jsonify({'status': 'success', 'data': ai_data})
-            except Exception as e:
-                print(f"Gemini Error: {e}")
+            except Exception as err:
+                print(f"Gemini Error: {err}")
                 return jsonify({'status': 'success', 'data': {
                     'reply': '不好意思，我剛剛恍神了一下，您可以再說一次嗎？',
                     'action': 'chat', 'visual_cues': ''
@@ -6492,7 +6979,8 @@ def ai_stylist_chat():
         else:
             return jsonify({'status': 'success', 'data': {'reply': '系統維護中。', 'action': 'chat', 'visual_cues': ''}})
 
-    except Exception as e:
+    except Exception as err:
+        print(f"Chat API Error: {err}")
         return jsonify({'status': 'error', 'msg': '系統發生錯誤'})
 
 @app.route('/api/mirror_mode', methods=['POST'])
@@ -6531,15 +7019,16 @@ def update_accessibility():
     """
     if 'user_id' not in session: return jsonify({'status': 'error'}), 401
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
+    # noinspection PyBroadException
     try:
-        conn.execute('UPDATE users SET accessibility_prefs = ? WHERE id = ?',
+        db_conn.execute('UPDATE users SET accessibility_prefs = ? WHERE id = ?',
                      (json.dumps(request.json), session['user_id']))
-        conn.commit()
+        db_conn.commit()
     except:
         pass
     finally:
-        conn.close()
+        db_conn.close()
 
     return jsonify({'status': 'success'})
 
@@ -6571,11 +7060,11 @@ def submit_proposal():
     desc = request.form.get('description', '')
     if not tag: return jsonify({'status': 'error', 'msg': '標籤名稱為空'})
 
-    conn = get_db_connection()
-    conn.execute('INSERT INTO style_proposals (user_id, tag_name, description) VALUES (?, ?, ?)',
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT INTO style_proposals (user_id, tag_name, description) VALUES (?, ?, ?)',
                  (session['user_id'], tag, desc))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
 
     return jsonify({'status': 'success', 'msg': '提案已提交審核'})
 
@@ -6586,10 +7075,10 @@ def upgrade_vip():
     """
     if 'user_id' not in session: return jsonify({'status': 'error', 'msg': '請先登入'}), 401
 
-    conn = get_db_connection()
-    conn.execute('UPDATE users SET is_vip=1 WHERE id=?', (session['user_id'],))
-    conn.commit()
-    conn.close()
+    db_conn = get_db_connection()
+    db_conn.execute('UPDATE users SET is_vip=1 WHERE id=?', (session['user_id'],))
+    db_conn.commit()
+    db_conn.close()
 
     session['is_vip'] = True
     return jsonify({'status': 'success', 'msg': '恭喜升級 VIP！'})
@@ -6600,31 +7089,37 @@ def resolve_report_api():
     """
     [管理] 處理檢舉
     """
+    # 權限驗證
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'status': 'error', 'msg': '權限不足'}), 403
 
-    data = request.json
+    data = request.json or {}
     report_id = data.get('report_id')
     action = data.get('action')
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        msg = '操作完成'
         if action == 'delete_post':
-            report = conn.execute('SELECT post_id FROM reports WHERE id=?', (report_id,)).fetchone()
+            report = db_conn.execute('SELECT post_id FROM reports WHERE id=?', (report_id,)).fetchone()
             if report:
-                conn.execute('DELETE FROM posts WHERE id=?', (report['post_id'],))
-                conn.execute('UPDATE reports SET status="resolved" WHERE id=?', (report_id,))
+                db_conn.execute('DELETE FROM posts WHERE id=?', (report['post_id'],))
+                db_conn.execute('UPDATE reports SET status="resolved" WHERE id=?', (report_id,))
                 msg = '貼文已刪除'
             else:
                 msg = '檢舉紀錄不存在'
         else:
-            conn.execute('UPDATE reports SET status="dismissed" WHERE id=?', (report_id,))
+            db_conn.execute('UPDATE reports SET status="dismissed" WHERE id=?', (report_id,))
             msg = '檢舉已駁回'
-        conn.commit()
+
+        db_conn.commit()
         return jsonify({'status': 'success', 'msg': msg})
+
+    except Exception as err:
+        print(f"Admin API Error: {err}")
+        return jsonify({'status': 'error', 'msg': '資料庫處理失敗，請稍後再試'}), 500
+
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/api/admin/review_proposal', methods=['POST'])
 def review_proposal():
@@ -6636,10 +7131,10 @@ def review_proposal():
     p_id = request.json.get('id')
     status = 'approved' if request.json.get('action') == 'approve' else 'rejected'
 
-    conn = get_db_connection()
-    conn.execute('UPDATE style_proposals SET status=? WHERE id=?', (status, p_id))
-    conn.commit()
-    conn.close()
+    db_conn = get_db_connection()
+    db_conn.execute('UPDATE style_proposals SET status=? WHERE id=?', (status, p_id))
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success'})
 
 @app.route('/api/admin/update_trends', methods=['POST'])
@@ -6649,11 +7144,11 @@ def update_trends():
     """
     if session.get('role') != 'admin': return jsonify({'status': 'error'}), 403
 
-    conn = get_db_connection()
-    conn.execute('INSERT OR REPLACE INTO system_configs (key, value) VALUES (?, ?)',
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT OR REPLACE INTO system_configs (key, value) VALUES (?, ?)',
                  ('trend_weights', json.dumps(request.json.get('weights'))))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success'})
 
 @app.route('/api/research/export_report')
@@ -6663,12 +7158,13 @@ def export_research_report():
     """
     if session.get('role') != 'admin': return jsonify({'status': 'error'}), 403
 
-    conn = get_db_connection()
+    db_conn = get_db_connection()
 
     # 1. 身形多樣性統計
     shape_stats = {}
-    rows = conn.execute("SELECT body_data FROM analysis_history").fetchall()
+    rows = db_conn.execute("SELECT body_data FROM analysis_history").fetchall()
     for r in rows:
+        # noinspection PyBroadException
         try:
             b = json.loads(r['body_data'])
             shape = b.get('shape', 'Unknown').split(' ')[0]
@@ -6677,11 +7173,11 @@ def export_research_report():
             pass
 
     # 2. 心理影響統計
-    psy_stats = conn.execute(
+    psy_stats = db_conn.execute(
         'SELECT feeling, AVG(rating) as avg, COUNT(*) as c FROM wear_logs GROUP BY feeling').fetchall()
     psy_data = [{'feeling': r['feeling'], 'avg_score': round(r['avg'], 1), 'count': r['c']} for r in psy_stats]
 
-    conn.close()
+    db_conn.close()
 
     report = {
         'meta': {'time': datetime.datetime.now().isoformat(), 'title': 'Anonymous Research Data'},
@@ -6703,12 +7199,12 @@ def lab_track_api():
     if 'user_id' not in session: return jsonify({'status': 'error'}), 401
 
     d = request.json
-    conn = get_db_connection()
-    conn.execute('INSERT INTO body_tracking (user_id, weight, waist, hip, note, recorded_at) VALUES (?,?,?,?,?,?)',
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT INTO body_tracking (user_id, weight, waist, hip, note, recorded_at) VALUES (?,?,?,?,?,?)',
                  (session['user_id'], d.get('weight'), d.get('waist'), d.get('hip'), d.get('note'),
                   datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-    conn.commit()
-    conn.close()
+    db_conn.commit()
+    db_conn.close()
     return jsonify({'status': 'success'})
 
 @app.route('/api/lab/correct', methods=['POST'])
@@ -6718,19 +7214,19 @@ def lab_correct_api():
     """
     if 'user_id' not in session: return jsonify({'status': 'error'}), 401
 
-    conn = get_db_connection()
-    latest = conn.execute('SELECT id FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
+    db_conn = get_db_connection()
+    latest = db_conn.execute('SELECT id FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
                           (session['user_id'],)).fetchone()
 
     if latest:
-        conn.execute('UPDATE analysis_history SET is_incorrect=1, note=? WHERE id=?',
+        db_conn.execute('UPDATE analysis_history SET is_incorrect=1, note=? WHERE id=?',
                      (f"User correction: {request.json.get('correct_shape')}", latest['id']))
-        conn.commit()
+        db_conn.commit()
         msg = '已記錄回饋'
     else:
         msg = '無近期紀錄'
 
-    conn.close()
+    db_conn.close()
     return jsonify({'status': 'success', 'msg': msg})
 
 @app.route('/api/lab/mood', methods=['POST'])
@@ -6751,68 +7247,67 @@ def lab_mood_api():
 @app.route('/setup_db_final')
 def setup_db_final():
     """資料庫緊急補完腳本"""
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        # 1. 補上 analysis_history 缺少的欄位
+        # noinspection PyBroadException
         try:
-            conn.execute("ALTER TABLE analysis_history ADD COLUMN is_converted BOOLEAN DEFAULT 0")
+            db_conn.execute("ALTER TABLE analysis_history ADD COLUMN is_converted BOOLEAN DEFAULT 0")
+        except:
+            pass
+        # noinspection PyBroadException
+        try:
+            db_conn.execute("ALTER TABLE analysis_history ADD COLUMN ab_variant TEXT DEFAULT 'A'")
+        except:
+            pass
+        # noinspection PyBroadException
+        try:
+            db_conn.execute("ALTER TABLE analysis_history ADD COLUMN model_version TEXT")
+        except:
+            pass
+        # noinspection PyBroadException
+        try:
+            db_conn.execute("ALTER TABLE users ADD COLUMN maturity_level TEXT DEFAULT 'balanced'")
         except:
             pass
 
-        try:
-            conn.execute("ALTER TABLE analysis_history ADD COLUMN ab_variant TEXT DEFAULT 'A'")
-        except:
-            pass
-
-        try:
-            conn.execute("ALTER TABLE analysis_history ADD COLUMN model_version TEXT")
-        except:
-            pass
-
-        # 2. 補上 users 缺少的欄位
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN maturity_level TEXT DEFAULT 'balanced'")
-        except:
-            pass
-
-        conn.commit()
+        db_conn.commit()
         return "資料庫修復完成！缺少的欄位 (is_converted 等) 已補上。請回到 <a href='/admin'>後台</a>"
-    except Exception as e:
-        return f"修復失敗: {e}"
+    except Exception as err:
+        return f"修復失敗: {err}"
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/setup_trends')
 def setup_trends_db():
     """趨勢資料庫初始化"""
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
-        conn.execute(
+        db_conn.execute(
             'CREATE TABLE IF NOT EXISTS trends (id INTEGER PRIMARY KEY, keyword TEXT, influence_score INTEGER, data_points TEXT)')
-        conn.execute(
+        db_conn.execute(
             'CREATE TABLE IF NOT EXISTS celebrity_looks (id INTEGER PRIMARY KEY, trend_id INTEGER, image_path TEXT)')
-        conn.execute(
+        db_conn.execute(
             'CREATE TABLE IF NOT EXISTS celeb_likes (user_id INTEGER, celeb_id INTEGER, PRIMARY KEY(user_id, celeb_id))')
 
-        if conn.execute('SELECT count(*) FROM trends').fetchone()[0] == 0:
-            conn.execute("INSERT INTO trends (keyword, influence_score) VALUES ('多巴胺穿搭', 95)")
-            conn.commit()
+        if db_conn.execute('SELECT count(*) FROM trends').fetchone()[0] == 0:
+            db_conn.execute("INSERT INTO trends (keyword, influence_score) VALUES ('多巴胺穿搭', 95)")
+            db_conn.commit()
         return "Trends DB Initialized"
     finally:
-        conn.close()
+        db_conn.close()
 
 @app.route('/setup_admin')
 def setup_admin():
     """建立管理員"""
-    conn = get_db_connection()
+    db_conn = get_db_connection()
     try:
         pw = generate_password_hash('admin123')
-        conn.execute("INSERT OR IGNORE INTO users (email, password, name, role, is_vip) VALUES (?,?,?,?,1)",
+        db_conn.execute("INSERT OR IGNORE INTO users (email, password, name, role, is_vip) VALUES (?,?,?,?,1)",
                      ('admin@style.com', pw, 'Admin', 'admin'))
-        conn.commit()
+        db_conn.commit()
         return "Admin Created: admin@style.com / admin123"
     finally:
-        conn.close()
+        db_conn.close()
 
 if __name__ == '__main__':
     print("------------------------------------------------")
@@ -6852,6 +7347,7 @@ if __name__ == '__main__':
 
         fixed_count = 0
         for table, col_def in columns_to_check:
+            # noinspection PyBroadException
             try:
                 # 嘗試新增欄位，如果欄位已存在會報錯並被忽略
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_def}")

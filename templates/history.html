@@ -1,26 +1,170 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    /* =========================================
+       🎨 歷史紀錄專屬美化 CSS
+       ========================================= */
+    .archive-header {
+        background: linear-gradient(135deg, rgba(212, 165, 165, 0.1) 0%, rgba(108, 142, 191, 0.1) 100%);
+        border-radius: 2rem;
+        padding: 3rem 2rem;
+        margin-bottom: 3rem;
+    }
+
+    /* 標籤切換按鈕優化 */
+    .nav-pills .nav-link {
+        color: #888;
+        background-color: #f8f9fa;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        font-weight: 600;
+    }
+    .nav-pills .nav-link:hover {
+        background-color: #e9ecef;
+    }
+    .nav-pills .nav-link.active {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+        box-shadow: 0 8px 16px rgba(212, 165, 165, 0.4);
+        transform: translateY(-2px);
+    }
+
+    /* 精緻卡片設計 */
+    .history-card {
+        background: #ffffff;
+        border-radius: 1.5rem;
+        border: 1px solid rgba(0,0,0,0.05);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+        transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+        overflow: hidden;
+    }
+    .history-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+    }
+
+    /* 圖片區域與特效 */
+    .img-wrapper {
+        position: relative;
+        height: 280px;
+        overflow: hidden;
+    }
+    .img-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.6s ease;
+    }
+    .history-card:hover .img-wrapper img {
+        transform: scale(1.08);
+    }
+
+    /* 日期標籤毛玻璃效果 */
+    .date-badge {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(5px);
+        color: #333;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 6px 14px;
+        border-radius: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    /* 刪除按鈕優化 */
+    .delete-btn {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+        color: #dc3545;
+        border: none;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transform: scale(0.8) translateY(-10px);
+        transition: all 0.3s ease;
+    }
+    .history-card:hover .delete-btn {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    .delete-btn:hover {
+        background: #dc3545;
+        color: white;
+    }
+
+    /* Modal 報告排版優化 */
+    .report-card {
+        background: #fdfdfd;
+        border-radius: 1rem;
+        border: 1px solid #f0f0f0;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    .color-pill {
+        display: inline-block;
+        background: #f0f0f0;
+        color: #555;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        margin: 0 6px 6px 0;
+        border: 1px solid #e0e0e0;
+    }
+    .do-dont-list li {
+        margin-bottom: 8px;
+        position: relative;
+        padding-left: 1.5rem;
+        list-style: none;
+    }
+    .do-dont-list.do li::before {
+        content: '\f058'; /* FontAwesome check-circle */
+        font-family: 'Font Awesome 5 Free';
+        font-weight: 900;
+        color: #198754;
+        position: absolute;
+        left: 0;
+    }
+    .do-dont-list.dont li::before {
+        content: '\f057'; /* FontAwesome times-circle */
+        font-family: 'Font Awesome 5 Free';
+        font-weight: 900;
+        color: #dc3545;
+        position: absolute;
+        left: 0;
+    }
+</style>
+
 <div class="container py-5">
 
-    <div class="text-center mb-5 fade-in">
-        <h2 class="fw-bold" style="color: var(--primary-color);">
-            <i class="fas fa-history me-2"></i>您的風格檔案館
+    <div class="archive-header text-center fade-in">
+        <h2 class="fw-bold mb-3" style="color: var(--primary-color);">
+            <i class="fas fa-book-open me-2"></i>您的風格檔案館
         </h2>
-        <p class="text-muted">回顧每一次的 AI 診斷與蛻變過程</p>
+        <p class="text-muted mb-0 fs-5">記錄您專屬的時尚進化史，回顧每一次的 AI 穿搭靈感。</p>
     </div>
 
     <ul class="nav nav-pills mb-5 justify-content-center gap-3" id="pills-tab" role="tablist">
         <li class="nav-item">
-            <button class="nav-link active rounded-pill px-5 shadow-sm fw-bold"
+            <button class="nav-link active rounded-pill px-5 shadow-sm"
                     id="pills-analysis-tab" data-bs-toggle="pill" data-bs-target="#pills-analysis" type="button">
                 <i class="fas fa-magic me-2"></i>分析紀錄
             </button>
         </li>
         <li class="nav-item">
-            <button class="nav-link rounded-pill px-5 shadow-sm fw-bold"
+            <button class="nav-link rounded-pill px-5 shadow-sm"
                     id="pills-tryon-tab" data-bs-toggle="pill" data-bs-target="#pills-tryon" type="button">
-                <i class="fas fa-tshirt me-2"></i>試穿紀錄
+                <i class="fas fa-tshirt me-2"></i>虛擬試衣
             </button>
         </li>
     </ul>
@@ -31,54 +175,52 @@
             {% if analyses %}
             <div class="row g-4">
                 {% for item in analyses %}
-                <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
-                    <div class="glass-card w-100 p-0 overflow-hidden position-relative hover-lift border-0 shadow-sm" style="transition: all 0.3s;">
+                <div class="col-md-6 col-lg-4 d-flex align-items-stretch fade-in" style="animation-delay: {{ loop.index0 * 0.1 }}s;">
+                    <div class="history-card w-100 d-flex flex-column">
 
-                        <div class="position-relative overflow-hidden group">
+                        <div class="img-wrapper">
                             {% if item.img %}
-                                <img src="{{ url_for('static', filename=item.img) }}" class="w-100 transition-zoom" style="height: 280px; object-fit: cover;">
+                                <img src="{{ url_for('static', filename=item.img) }}" alt="Analysis Image"
+                                     onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light d-flex align-items-center justify-content-center h-100 text-muted\'><div class=\'text-center\'><i class=\'fas fa-image-slash fa-3x mb-2 opacity-50\'></i><p class=\'small mb-0\'>圖片已遺失</p></div></div>';">
                             {% else %}
-                                <div class="bg-light text-secondary d-flex align-items-center justify-content-center" style="height: 280px;">
+                                <div class="bg-light d-flex align-items-center justify-content-center h-100 text-muted">
                                     <div class="text-center">
                                         <i class="fas fa-user-slash fa-3x mb-2 opacity-50"></i>
-                                        <p class="small mb-0">無圖片</p>
+                                        <p class="small mb-0">無圖片紀錄</p>
                                     </div>
                                 </div>
                             {% endif %}
 
-                            <div class="position-absolute top-0 start-0 m-3">
-                                <span class="badge bg-white text-dark shadow-sm rounded-pill px-3 py-2 opacity-90">
-                                    <i class="far fa-calendar-alt me-1"></i> {{ item.date.split(' ')[0] }}
-                                </span>
+                            <div class="date-badge">
+                                <i class="far fa-calendar-alt me-1 text-primary"></i> {{ item.date.split(' ')[0] }}
                             </div>
 
-                            <button class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-3 shadow delete-btn"
-                                    onclick="deleteRecord('{{ item.id }}', 'analysis')" title="刪除此紀錄">
+                            <button class="delete-btn" onclick="deleteRecord('{{ item.id }}', 'analysis')" title="刪除此紀錄">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
 
-                        <div class="p-4 d-flex flex-column h-100">
+                        <div class="p-4 d-flex flex-column flex-grow-1">
                             <div class="mb-3">
-                                <small class="text-muted text-uppercase ls-1" style="font-size: 0.75rem;">Style Archetype</small>
-                                <h4 class="fw-bold text-primary mb-2">{{ item.style }}</h4>
+                                <span class="text-uppercase text-muted fw-bold" style="font-size: 0.7rem; letter-spacing: 1px;">Style Archetype</span>
+                                <h4 class="fw-bold text-dark mt-1 mb-3">{{ item.style }}</h4>
 
                                 <div class="d-flex gap-2 flex-wrap">
-                                    <span class="badge bg-light text-secondary border rounded-pill">
-                                        <i class="fas fa-smile me-1"></i> {{ item.face }}
+                                    <span class="badge bg-light text-secondary border rounded-pill px-3 py-2 shadow-sm">
+                                        <i class="fas fa-smile text-primary me-1"></i> {{ item.face }}
                                     </span>
                                     {% if item.body %}
-                                    <span class="badge bg-light text-secondary border rounded-pill">
-                                        <i class="fas fa-walking me-1"></i> {{ item.body }}
+                                    <span class="badge bg-light text-secondary border rounded-pill px-3 py-2 shadow-sm">
+                                        <i class="fas fa-walking text-primary me-1"></i> {{ item.body }}
                                     </span>
                                     {% endif %}
                                 </div>
                             </div>
 
-                            <div class="mt-auto pt-3 border-top">
+                            <div class="mt-auto pt-3 border-top border-light">
                                 <button class="btn btn-outline-primary w-100 rounded-pill fw-bold"
-                                        onclick="showDetail('{{ item.id }}', '{{ item.style }}', '{{ item.trace }}')">
-                                    查看完整報告 <i class="fas fa-arrow-right ms-1"></i>
+                                        onclick="showDetail('{{ item.id }}', '{{ item.style }}')">
+                                    查看專屬報告 <i class="fas fa-arrow-right ms-1"></i>
                                 </button>
                             </div>
                         </div>
@@ -88,13 +230,15 @@
             </div>
             {% else %}
             <div class="text-center py-5 fade-in">
-                <div class="mb-3 text-muted opacity-25">
-                    <i class="fas fa-folder-open fa-5x"></i>
+                <div class="mb-4 d-flex justify-content-center">
+                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center" style="width: 120px; height: 120px;">
+                        <i class="fas fa-folder-open fa-4x text-muted opacity-50"></i>
+                    </div>
                 </div>
-                <h4 class="fw-bold text-secondary">目前沒有歷史紀錄</h4>
-                <p class="text-muted mb-4">快去體驗第一次 AI 分析，建立您的時尚檔案吧！</p>
-                <a href="{{ url_for('analysis_page') }}" class="btn btn-primary rounded-pill px-5 py-3 shadow fw-bold">
-                    <i class="fas fa-camera me-2"></i> 前往分析
+                <h4 class="fw-bold text-secondary mb-3">您的檔案館還是空的</h4>
+                <p class="text-muted mb-4 fs-5">快去體驗第一次 AI 分析，尋找最適合您的穿搭風格吧！</p>
+                <a href="{{ url_for('analysis_page') }}" class="btn btn-primary rounded-pill px-5 py-3 shadow-lg fw-bold fs-5">
+                    <i class="fas fa-camera me-2"></i> 立即開始檢測
                 </a>
             </div>
             {% endif %}
@@ -102,12 +246,12 @@
 
         <div class="tab-pane fade" id="pills-tryon">
             <div class="text-center py-5">
-                <div class="bg-light rounded-4 p-5 d-inline-block shadow-inner">
-                    <i class="fas fa-tshirt fa-4x text-muted mb-3 opacity-50"></i>
-                    <h5 class="fw-bold text-secondary">試穿紀錄功能即將上線</h5>
-                    <p class="text-muted">這裡將展示您使用 AI 虛擬試衣間的所有合成照片。</p>
-                    <a href="{{ url_for('try_on_page') }}" class="btn btn-outline-dark rounded-pill px-4 mt-2">
-                        去試衣間逛逛
+                <div class="bg-light rounded-4 p-5 d-inline-block shadow-sm">
+                    <i class="fas fa-tshirt fa-4x text-muted mb-3 opacity-25"></i>
+                    <h5 class="fw-bold text-secondary">試穿紀錄功能籌備中</h5>
+                    <p class="text-muted">這裡未來將為您展示虛擬試衣間的精彩合成照片。</p>
+                    <a href="{{ url_for('try_on_page') }}" class="btn btn-dark rounded-pill px-4 mt-3">
+                        前往虛擬試衣間
                     </a>
                 </div>
             </div>
@@ -116,107 +260,160 @@
 </div>
 
 <div class="modal fade" id="detailModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <div class="modal-header border-0 bg-light rounded-top-4">
-                <h5 class="modal-title fw-bold text-primary">
-                    <i class="fas fa-file-alt me-2"></i>分析詳情
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header border-0 pb-0 pt-4 px-4">
+                <h4 class="modal-title fw-bold text-dark w-100 text-center position-relative">
+                    <span id="modalStyleName">報告載入中...</span>
+                    <button type="button" class="btn-close position-absolute end-0 top-50 translate-middle-y" data-bs-dismiss="modal"></button>
+                </h4>
             </div>
-            <div class="modal-body p-4">
-                <h4 class="fw-bold mb-3" id="modalStyleName"></h4>
-                <div class="p-3 bg-light rounded-3 text-muted small mb-3" style="max-height: 200px; overflow-y: auto;">
-                    <strong class="d-block mb-2 text-dark">AI 推理邏輯：</strong>
-                    <span id="modalTrace"></span>
-                </div>
-                <div class="alert alert-info border-0 d-flex align-items-center">
-                    <i class="fas fa-info-circle me-3 fa-lg"></i>
-                    <div>
-                        <strong>小提示：</strong>
-                        建議您可以根據此結果，前往 <a href="{{ url_for('shop_page') }}" class="fw-bold text-decoration-underline">商城</a> 尋找適合單品。
-                    </div>
+
+            <div class="modal-body px-4 pb-4 pt-3" id="modalTrace">
+                <div class="text-center py-5">
+                    <div class="spinner-grow text-primary opacity-50" role="status" style="width: 3rem; height: 3rem;"></div>
+                    <p class="mt-3 text-muted fw-bold">正在從資料庫提取您的專屬報告...</p>
                 </div>
             </div>
-            <div class="modal-footer border-0">
-                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">關閉</button>
+
+            <div class="modal-footer border-0 bg-light rounded-bottom-4 py-3 d-flex justify-content-between align-items-center">
+                <div class="small text-muted">
+                    <i class="fas fa-lightbulb text-warning me-1"></i> 提示：可前往<a href="{{ url_for('shop_page') }}" class="text-decoration-none fw-bold ms-1">商城</a>尋找對應單品
+                </div>
+                <button type="button" class="btn btn-primary rounded-pill px-4" data-bs-dismiss="modal">關閉報告</button>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-    /* 卡片懸浮上移特效 */
-    .hover-lift {
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-    }
-    .hover-lift:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 12px 24px rgba(0,0,0,0.1) !important;
-    }
-
-    /* 圖片放大特效 */
-    .group:hover .transition-zoom {
-        transform: scale(1.05);
-    }
-    .transition-zoom {
-        transition: transform 0.5s ease;
-    }
-
-    /* 刪除按鈕預設隱藏，hover 時顯示 */
-    .delete-btn {
-        opacity: 0;
-        transform: scale(0.8);
-        transition: all 0.2s;
-    }
-    .group:hover .delete-btn {
-        opacity: 1;
-        transform: scale(1);
-    }
-
-    /* Tab 樣式優化 */
-    .nav-pills .nav-link {
-        color: #666;
-        background-color: white;
-        border: 1px solid #eee;
-    }
-    .nav-pills .nav-link.active {
-        background-color: var(--primary-color) !important;
-        color: white !important;
-        border-color: var(--primary-color);
-        box-shadow: 0 4px 10px rgba(212, 165, 165, 0.4);
-    }
-
-    .ls-1 { letter-spacing: 1px; }
-    .opacity-90 { opacity: 0.9; }
-</style>
-
 <script>
-    function showDetail(id, style, trace) {
-        document.getElementById('modalStyleName').innerText = style;
-        // 簡單處理 trace 文字，讓箭頭換行顯示更清楚
-        document.getElementById('modalTrace').innerHTML = trace.replace(/->/g, '<br>↓<br>');
+    // 顯示詳細報告
+    function showDetail(id, style) {
+        // 重置 Modal 畫面為載入狀態
+        document.getElementById('modalStyleName').innerHTML = `<i class="fas fa-sparkles text-warning me-2"></i>${style} 報告`;
+        document.getElementById('modalTrace').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                <p class="mt-3 text-muted fw-bold">解碼分析數據中...</p>
+            </div>`;
 
         let myModal = new bootstrap.Modal(document.getElementById('detailModal'));
         myModal.show();
+
+        // 呼叫 API 獲取詳細資料
+        fetch(`/api/get_history_detail/${id}`)
+            .then(res => res.json())
+            .then(response => {
+                if(response.status === 'success') {
+                    const data = response.data;
+                    const rec = data.recommendation;
+
+                    // 1. 處理色彩陣列 (對應後端的 rec.seasonal_color)
+                    let colorHtml = '<span class="text-muted">無色彩資料</span>';
+                    if (rec.seasonal_color && rec.seasonal_color.length > 0) {
+                        colorHtml = rec.seasonal_color[0].best.map(color => `<span class="color-pill">${color}</span>`).join('');
+                    }
+
+                    // 2. 處理關鍵單品 (將後端的 fabrics, patterns, accessories 整合)
+                    let itemsArray = [];
+                    if(rec.fabrics) itemsArray = itemsArray.concat(rec.fabrics);
+                    if(rec.patterns) itemsArray = itemsArray.concat(rec.patterns);
+                    if(rec.accessories) itemsArray = itemsArray.concat(rec.accessories.split('、'));
+
+                    const keyItems = itemsArray.length > 0 ? itemsArray.map(i => `<span class="badge bg-dark text-white me-1 mb-1 px-3 py-2 fw-normal rounded-pill">${i}</span>`).join('') : '<span class="text-muted">無單品資料</span>';
+
+                    // 3. 處理 Do / Don't 列表 (對應後端的 rec.dos 與 rec.donts)
+                    let doList = [];
+                    if (Array.isArray(rec.dos)) doList = rec.dos;
+                    else if (typeof rec.dos === 'string') doList = rec.dos.split(/[、,]/); // 支援字串切割
+
+                    const doItems = doList.length > 0 ? doList.map(d => `<li>${d}</li>`).join('') : '<li>無特定建議</li>';
+                    const dontItems = Array.isArray(rec.donts) && rec.donts.length > 0 ? rec.donts.map(d => `<li>${d}</li>`).join('') : '<li>無特定避雷</li>';
+
+                    // 4. 處理核心總結 (將後端的 Markdown 格式轉換為漂亮的 HTML)
+                    let summaryText = rec.advice || rec.story || '目前尚無詳細文字總結。';
+                    summaryText = summaryText.replace(/\*\*(.*?)\*\*/g, '<b class="text-dark">$1</b>').replace(/\n/g, '<br>');
+
+                    let htmlContent = `
+                        <div class="report-card border-start border-4 border-primary shadow-sm">
+                            <h5 class="fw-bold mb-3"><i class="fas fa-quote-left text-muted me-2 opacity-50"></i>核心風格解析</h5>
+                            <p class="text-muted mb-0 lh-lg" style="font-size: 0.95rem;">${summaryText}</p>
+                        </div>
+
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <div class="report-card h-100 mb-0 shadow-sm">
+                                    <h6 class="fw-bold text-primary mb-3"><i class="fas fa-palette me-2"></i>命定色彩</h6>
+                                    <div>${colorHtml}</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="report-card h-100 mb-0 shadow-sm">
+                                    <h6 class="fw-bold text-dark mb-3"><i class="fas fa-tshirt me-2"></i>關鍵單品元素</h6>
+                                    <div>${keyItems}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <div class="report-card h-100 mb-0 bg-success bg-opacity-10 border-success border-opacity-25">
+                                    <h6 class="fw-bold text-success mb-3">這樣穿最適合 (Do)</h6>
+                                    <ul class="do-dont-list do ps-0 mb-0 text-dark small lh-lg">${doItems}</ul>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="report-card h-100 mb-0 bg-danger bg-opacity-10 border-danger border-opacity-25">
+                                    <h6 class="fw-bold text-danger mb-3">請盡量避免 (Don't)</h6>
+                                    <ul class="do-dont-list dont ps-0 mb-0 text-dark small lh-lg">${dontItems}</ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion shadow-sm" id="traceAccordion">
+                            <div class="accordion-item border-0 rounded-3 overflow-hidden">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed bg-light text-muted fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTrace">
+                                        <i class="fas fa-microchip me-2"></i> 查看 AI 推理路徑 (開發者視角)
+                                    </button>
+                                </h2>
+                                <div id="collapseTrace" class="accordion-collapse collapse" data-bs-parent="#traceAccordion">
+                                    <div class="accordion-body bg-light pt-0 small font-monospace text-muted lh-lg" style="white-space: pre-wrap;">
+                                        ${data.trace ? data.trace.replace(/->/g, '\n↓\n') : '無推理紀錄'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('modalTrace').innerHTML = htmlContent;
+                } else {
+                    document.getElementById('modalTrace').innerHTML = `<div class="alert alert-danger shadow-sm border-0"><i class="fas fa-exclamation-triangle me-2"></i>載入失敗: ${response.msg}</div>`;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('modalTrace').innerHTML = `<div class="alert alert-danger shadow-sm border-0"><i class="fas fa-wifi me-2"></i>網路錯誤，無法載入報告</div>`;
+            });
     }
 
+    // 刪除紀錄 API
     function deleteRecord(id, type) {
-        if(!confirm('確定要刪除這筆紀錄嗎？刪除後無法復原。')) return;
+        if(!confirm('這筆時尚紀錄將永久消失，確定要刪除嗎？')) return;
 
-        // 這裡需要後端配合新增刪除 API (假設路徑如下)
-        // 目前先用 reload 模擬
         fetch('/api/delete_history', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ id: id, type: type })
-        }).then(res => {
-            // 無論成功與否都重新整理 (若沒後端支援，這行也能讓使用者看到效果)
-            alert('紀錄已刪除');
-            location.reload();
+        }).then(res => res.json())
+          .then(data => {
+            if(data.status === 'success') {
+                location.reload();
+            } else {
+                alert('刪除失敗：' + data.msg);
+            }
         }).catch(e => {
-            alert('刪除成功'); // 模擬成功
-            location.reload();
+            console.error('刪除錯誤:', e);
+            alert('系統發生錯誤，請稍後再試。');
         });
     }
 </script>

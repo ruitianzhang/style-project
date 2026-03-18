@@ -278,8 +278,20 @@
                         </li>
 
                         <li class="nav-item dropdown ms-2">
-                            <a class="nav-link dropdown-toggle btn btn-light rounded-pill px-3 border shadow-sm d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" style="background: white;">
-                                <i class="fas fa-user-circle fs-5" style="color: var(--primary-color);"></i>
+                            <a class="nav-link dropdown-toggle btn btn-light rounded-pill px-3 border shadow-sm d-flex align-items-center gap-2" href="#" role="button" data-bs-toggle="dropdown" style="background: white; padding-top: 4px; padding-bottom: 4px;">
+
+                                {% set avatar_path = session.get('avatar') %}
+                                {% if avatar_path and not avatar_path.startswith('http') %}
+                                    {% set avatar_src = url_for('static', filename=avatar_path.replace('static/', '')) %}
+                                {% elif avatar_path %}
+                                    {% set avatar_src = avatar_path %}
+                                {% else %}
+                                    {% set avatar_src = 'https://ui-avatars.com/api/?name=' ~ session.get('user_name', 'User') ~ '&background=F3EFEE&color=D4A5A5' %}
+                                {% endif %}
+
+                                <img src="{{ avatar_src }}"
+                                    class="rounded-circle"
+                                    style="width: 35px; height: 35px; object-fit: cover; border: 2px solid var(--primary-color);">
                                 <span class="text-dark small fw-bold">{{ session.get('user_name') }}</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-3 rounded-4 p-2" style="min-width: 220px;">
