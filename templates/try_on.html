@@ -146,30 +146,48 @@
         </div>
 
         <div class="col-lg-3 bg-white border shadow-sm d-flex flex-column" style="height: 85vh; border-radius: 25px;">
-            <div class="p-4 border-bottom" style="background: #FDFBFA; border-radius: 25px 25px 0 0;">
+            <div class="p-4 border-bottom" style="background: #FDFBFA; border-radius: 25px 25px 0 0; z-index: 2;">
                 <h5 class="fw-bold mb-1" style="color: #333;"><i class="fas fa-robot me-2 text-pink"></i>AI 造型助理</h5>
                 <small class="text-muted">告訴我您想穿什麼，我幫您設計。</small>
             </div>
 
-            <div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" id="chatArea" style="background-color: #F9F7F6;">
-                <div class="d-flex flex-column align-items-start mb-3">
-                    <div class="bg-white border p-3 rounded-4 shadow-sm text-secondary small" style="max-width: 95%;">
-                        👋 嗨！我是您的 AI 造型師。<br>
-                        您可以試著對我說：
-                        <hr class="my-2 opacity-10">
-                        👉 "給我一件復古的丹寧外套"<br>
-                        👉 "換成紅色的絲綢長裙"
+            <div class="position-relative flex-grow-1 d-flex flex-column" style="border-radius: 0 0 25px 25px; overflow: hidden;">
+
+                <div class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center"
+                     style="z-index: 10; background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); cursor: pointer;"
+                     onclick="showDevModal(event)">
+                    <div class="badge bg-white text-pink px-4 py-3 shadow border rounded-pill" style="font-size: 1rem; border-color: var(--morandi-pink) !important;">
+                        <i class="fas fa-lock me-2"></i>AI 造型模型訓練中
                     </div>
                 </div>
-            </div>
 
-            <div class="p-4 bg-white border-top" style="border-radius: 0 0 25px 25px;">
-                <div class="input-group">
-                    <input type="text" id="aiPrompt" class="form-control rounded-pill bg-light border-0 px-3" placeholder="輸入指令..." onkeypress="handleEnter(event)">
-                    <button class="btn btn-morandi-circle ms-2" onclick="sendAiCommand()">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
+                <div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" id="chatArea" style="background-color: #F9F7F6;">
+                    <div class="d-flex flex-column align-items-start mb-3">
+                        <div class="bg-white border p-3 rounded-4 shadow-sm text-secondary small" style="max-width: 95%;">
+                            👋 嗨！我是您的 AI 造型師。<br>
+                            您可以試著對我說：
+                            <hr class="my-2 opacity-10">
+                            👉 "給我一件復古的丹寧外套"<br>
+                            👉 "換成紅色的絲綢長裙"
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column align-items-end mb-3">
+                        <div class="p-3 small text-white rounded-4 shadow-sm" style="max-width: 85%; background-color: var(--morandi-pink);">
+                            幫我換成黑色的皮衣！
+                        </div>
+                    </div>
                 </div>
+
+                <div class="p-4 bg-white border-top" style="border-radius: 0 0 25px 25px;">
+                    <div class="input-group">
+                        <input type="text" id="aiPrompt" class="form-control rounded-pill bg-light border-0 px-3"
+                            placeholder="敬請期待新功能..." readonly style="pointer-events: none;">
+                        <button class="btn btn-morandi-circle ms-2" type="button" style="pointer-events: none;">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

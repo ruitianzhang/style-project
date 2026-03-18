@@ -1,136 +1,102 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="glass-card p-0 overflow-hidden" style="height: 80vh; display: flex; flex-direction: column;">
-                
-                <div class="bg-primary text-white p-3 d-flex align-items-center">
-                    <i class="fas fa-robot fa-2x me-3"></i>
-                    <div>
-                        <h5 class="mb-0 fw-bold">AI 形象顧問</h5>
-                        <small class="opacity-75">Online • 隨時為您解答</small>
-                    </div>
-                </div>
-
-                <div id="chatBox" class="p-4 flex-grow-1 overflow-auto" style="background: rgba(255,255,255,0.5);">
-                    {% for log in logs %}
-                        <div class="d-flex mb-3 {{ 'justify-content-end' if log.sender == 'user' else 'justify-content-start' }}">
-                            <div class="p-3 rounded-4 shadow-sm" 
-                                 style="max-width: 75%; background: {{ '#D4A5A5' if log.sender == 'user' else 'white' }}; color: {{ 'white' if log.sender == 'user' else 'black' }}">
-                                {{ log.message }}
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-
-                <div class="p-3 bg-white border-top d-flex gap-2">
-                    <input type="text" id="msgInput" class="form-control rounded-pill" placeholder="例如：明天面試該穿什麼？" onkeypress="handleEnter(event)">
-                    <button class="btn btn-primary rounded-circle" onclick="sendMsg()" style="width: 45px; height: 45px;">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-function sendMsg() {
-    let input = document.getElementById('msgInput');
-    let msg = input.value.trim();
-    if (!msg) return;
-
-    // 顯示用戶訊息
-    appendMsg('user', msg);
-    input.value = '';
-
-    // 呼叫 API
-    fetch('/api/chat_response', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ message: msg })
-    })
-    .then(r => r.json())
-    .then(data => {
-        appendMsg('ai', data.reply);
-    });
-}
-
-function appendMsg(sender, text) {
-    let box = document.getElementById('chatBox');
-    let div = document.createElement('div');
-    div.className = `d-flex mb-3 ${sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`;
-    div.innerHTML = `
-        <div class="p-3 rounded-4 shadow-sm" style="max-width: 75%; background: ${sender === 'user' ? '#D4A5A5' : 'white'}; color: ${sender === 'user' ? 'white' : 'black'}">
-            ${text}
-        </div>
-    `;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-}
-
-function handleEnter(e) { if (e.key === 'Enter') sendMsg(); }
-window.onload = () => { document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight; }
-</script>
-{% endblock %}{% extends "base.html" %}
 
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-<div class="container py-3 h-100">
+<div class="container-fluid py-3 h-100" style="max-width: 1400px; min-height: 85vh;">
     <div class="row justify-content-center h-100">
-        <div class="col-md-8 col-lg-6 h-100">
 
-            <div class="glass-card p-0 overflow-hidden shadow-lg d-flex flex-column h-100" style="border-radius: 24px; height: 85vh !important;">
+        <div class="col-md-4 col-lg-3 mb-3 mb-md-0 d-flex flex-column" style="height: 85vh;">
+            <div class="glass-card p-3 h-100 d-flex flex-column shadow-sm" style="border-radius: 24px; background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(212, 165, 165, 0.2);">
+
+                <h6 class="fw-bold mb-3 px-2 text-dark" style="letter-spacing: 0.5px;">
+                    <i class="fas fa-history me-2 text-pink"></i>對話紀錄
+                </h6>
+
+                <button class="btn btn-primary w-100 rounded-pill fw-bold mb-3 shadow-sm d-flex align-items-center justify-content-center" onclick="createNewChat()" style="padding: 10px 0;">
+                    <i class="fas fa-plus me-2"></i>開啟新對話
+                </button>
+
+                <div class="overflow-auto flex-grow-1 custom-scrollbar pe-1">
+                    {% for s in sessions %}
+                    <div class="d-flex align-items-center justify-content-between p-3 mb-2 rounded-4 session-item {{ 'active-session' if s.id == active_session_id else '' }}"
+                         onclick="window.location.href='?session_id={{ s.id }}'" style="cursor: pointer; transition: all 0.2s ease;">
+                        <div class="text-truncate fw-medium" style="max-width: 80%; font-size: 0.95rem;">
+                            <i class="far fa-comment-dots me-2 opacity-75"></i> {{ s.title }}
+                        </div>
+                        <button class="btn btn-link text-danger p-0 m-0 text-decoration-none trash-btn" onclick="deleteChat(event, '{{ s.id }}')" title="刪除對話">
+                            <i class="fas fa-trash-alt" style="font-size: 0.9rem;"></i>
+                        </button>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted mt-4 small opacity-50">
+                        <i class="fas fa-box-open fa-2x mb-2"></i><br>尚無對話紀錄
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8 col-lg-7 d-flex flex-column" style="height: 85vh;">
+
+            <div class="glass-card p-0 overflow-hidden shadow-lg d-flex flex-column h-100" style="border-radius: 24px; background: rgba(255, 255, 255, 0.95);">
+
+                <input type="hidden" id="currentSessionId" value="{{ active_session_id }}">
 
                 <div class="p-3 d-flex align-items-center text-white"
-                     style="background: linear-gradient(135deg, var(--primary-color), #c08e8e);">
+                     style="background: linear-gradient(135deg, var(--primary-color), #c08e8e); z-index: 10;">
                     <div class="position-relative">
                         <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 48px; height: 48px;">
                             <i class="fas fa-robot fa-lg"></i>
                         </div>
                         <span class="position-absolute bottom-0 start-100 translate-middle p-1 bg-success border border-light rounded-circle"></span>
                     </div>
-                    <div class="ms-3">
+                    <div class="ms-3 flex-grow-1">
                         <h5 class="mb-0 fw-bold">AI 形象顧問</h5>
                         <small class="opacity-90" style="font-size: 0.85rem;">
-                            <i class="fas fa-sparkles me-1"></i>已載入您的身形數據
+                            <i class="fas fa-sparkles me-1"></i>已載入您的身形數據與偏好
                         </small>
                     </div>
                 </div>
 
-                <div id="chatBox" class="p-4 flex-grow-1 overflow-auto custom-scrollbar" style="background: rgba(255,255,255,0.6);">
+                <div id="chatBox" class="p-4 flex-grow-1 overflow-auto custom-scrollbar" style="background: #FDFBFA;">
 
                     <div class="d-flex mb-4 justify-content-start fade-in">
                         <div class="me-2 mt-1">
-                            <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 35px; height: 35px;">
+                            <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm border" style="width: 35px; height: 35px; border-color: rgba(212,165,165,0.3) !important;">
                                 <i class="fas fa-robot"></i>
                             </div>
                         </div>
-                        <div class="p-3 rounded-4 shadow-sm bg-white text-dark message-bubble">
-                            <p class="mb-0">嗨 {{ session['user_name'] }}！我是您的專屬 AI 造型師 ✨<br>
-                            我看過您的分析報告了，今天想聊聊什麼場合的穿搭呢？</p>
+                        <div class="p-3 rounded-4 shadow-sm bg-white text-dark message-bubble border" style="border-color: rgba(0,0,0,0.03) !important;">
+                            <p class="mb-0">嗨 {{ session.get('user_name', '貴賓') }}！我是您的專屬 AI 造型師 ✨<br>
+                            今天想聊聊什麼場合的穿搭呢？您可以隨時開啟新話題喔！</p>
                         </div>
                     </div>
 
                     {% for log in logs %}
-                        <div class="d-flex mb-4 {{ 'justify-content-end' if log.sender == 'user' else 'justify-content-start' }}">
+                        <div class="d-flex mb-4 {{ 'justify-content-end' if log.sender == 'user' else 'justify-content-start' }} fade-in">
                             {% if log.sender == 'ai' %}
                             <div class="me-2 mt-1">
-                                <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 35px; height: 35px;"><i class="fas fa-robot"></i></div>
+                                <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm border" style="width: 35px; height: 35px; border-color: rgba(212,165,165,0.3) !important;">
+                                    <i class="fas fa-robot"></i>
+                                </div>
                             </div>
                             {% endif %}
 
-                            <div class="p-3 rounded-4 shadow-sm message-bubble"
-                                 style="max-width: 85%; background: {{ 'var(--primary-color)' if log.sender == 'user' else 'white' }}; color: {{ 'white' if log.sender == 'user' else '#444' }}">
-                                <div class="markdown-content">{{ log.message }}</div>
+                            <div class="p-3 rounded-4 shadow-sm message-bubble {{ 'user-bubble' if log.sender == 'user' else 'ai-bubble' }}"
+                                 style="max-width: 85%;">
+                                <div class="{{ 'markdown-content' if log.sender == 'ai' else '' }}">{{ log.message }}</div>
                             </div>
                         </div>
                     {% endfor %}
 
-                    <div id="typingIndicator" class="d-none mb-4 justify-content-start">
-                        <div class="ms-5 p-3 rounded-4 bg-white shadow-sm" style="width: fit-content;">
+                    <div id="typingIndicator" class="d-none mb-4 justify-content-start fade-in">
+                        <div class="me-2 mt-1">
+                            <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm border" style="width: 35px; height: 35px; border-color: rgba(212,165,165,0.3) !important;">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-4 bg-white shadow-sm border" style="width: fit-content; border-color: rgba(0,0,0,0.03) !important;">
                             <div class="typing-dots">
                                 <span></span><span></span><span></span>
                             </div>
@@ -138,22 +104,22 @@ window.onload = () => { document.getElementById('chatBox').scrollTop = document.
                     </div>
                 </div>
 
-                <div class="p-3 bg-white border-top">
+                <div class="p-3 bg-white border-top shadow-sm" style="z-index: 10;">
 
-                    <div class="d-flex gap-2 overflow-auto mb-3 pb-1" style="white-space: nowrap; scrollbar-width: none;">
-                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('明天要去面試，該怎麼穿？')">💼 面試穿搭</button>
-                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('週末要去約會，想要溫柔一點的風格')">🌹 約會建議</button>
-                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('最近天氣變冷了，有推薦的穿法嗎？')">❄️ 天氣對策</button>
-                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 chip-btn" onclick="fillInput('我的身形適合穿寬褲嗎？')">👖 身形修飾</button>
+                    <div class="d-flex gap-2 overflow-auto mb-3 pb-1 custom-scrollbar" style="white-space: nowrap;">
+                        <button class="btn btn-sm rounded-pill px-3 chip-btn border" onclick="fillInput('明天要去面試，該怎麼穿？')">💼 面試穿搭</button>
+                        <button class="btn btn-sm rounded-pill px-3 chip-btn border" onclick="fillInput('週末要去約會，想要溫柔一點的風格')">🌹 約會建議</button>
+                        <button class="btn btn-sm rounded-pill px-3 chip-btn border" onclick="fillInput('最近天氣變冷了，有推薦的穿法嗎？')">❄️ 天氣對策</button>
+                        <button class="btn btn-sm rounded-pill px-3 chip-btn border" onclick="fillInput('我的身形適合穿寬褲嗎？')">👖 身形修飾</button>
                     </div>
 
                     <div class="input-group">
-                        <input type="text" id="msgInput" class="form-control rounded-pill bg-light border-0 py-3 px-4 shadow-inner"
-                               placeholder="輸入您的問題..." onkeypress="handleEnter(event)" style="box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);">
+                        <input type="text" id="msgInput" class="form-control rounded-pill bg-light border-0 py-3 px-4 shadow-inner text-dark"
+                               placeholder="輸入您的問題..." onkeypress="handleEnter(event)" style="box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);">
 
                         <button class="btn btn-primary rounded-circle ms-2 shadow-sm d-flex align-items-center justify-content-center send-btn"
-                                onclick="sendMsg()" style="width: 50px; height: 50px; transition: transform 0.2s;">
-                            <i class="fas fa-paper-plane"></i>
+                                onclick="sendMsg()" style="width: 52px; height: 52px;">
+                            <i class="fas fa-paper-plane fs-5"></i>
                         </button>
                     </div>
                 </div>
@@ -163,61 +129,115 @@ window.onload = () => { document.getElementById('chatBox').scrollTop = document.
 </div>
 
 <style>
-    /* 訊息氣泡優化 */
-    .message-bubble {
-        position: relative;
-        font-size: 0.95rem;
-        line-height: 1.6;
+    /* ==========================================
+       🎨 專屬 UI / UX 樣式表
+       ========================================== */
+
+    /* --- 左側側邊欄樣式 --- */
+    .session-item {
+        background: white;
+        border: 1px solid transparent;
     }
+    .session-item:hover {
+        background: #FDFBFA;
+        border-color: rgba(212, 165, 165, 0.4);
+    }
+    .active-session {
+        background: var(--primary-color) !important;
+        color: white !important;
+        box-shadow: 0 4px 12px rgba(212, 165, 165, 0.35);
+    }
+    .active-session .text-dark, .active-session .text-muted { color: rgba(255,255,255,0.9) !important; }
+    .active-session i { color: white !important; }
 
-    /* 讓 Markdown 樣式更漂亮 */
-    .message-bubble h3 { font-size: 1.1rem; font-weight: bold; margin-top: 10px; margin-bottom: 5px; }
-    .message-bubble ul { padding-left: 20px; margin-bottom: 5px; }
-    .message-bubble p { margin-bottom: 0.5rem; }
-    .message-bubble p:last-child { margin-bottom: 0; }
-    .message-bubble strong { font-weight: 700; }
+    .trash-btn { opacity: 0; transition: 0.2s; color: #dc3545 !important;}
+    .session-item:hover .trash-btn { opacity: 0.6; }
+    .session-item:hover .trash-btn:hover { opacity: 1; transform: scale(1.1); }
+    .active-session .trash-btn { opacity: 0.8; color: white !important; }
+    .active-session .trash-btn:hover { opacity: 1; }
 
-    /* 輸入動畫 (Typing Dots) */
+    /* --- 訊息氣泡優化 --- */
+    .message-bubble { position: relative; font-size: 0.95rem; line-height: 1.6; letter-spacing: 0.3px; }
+    .user-bubble { background: var(--primary-color); color: white; margin-left: auto; border-bottom-right-radius: 4px; }
+    .ai-bubble { background: white; color: #444; margin-right: auto; border-bottom-left-radius: 4px; border: 1px solid rgba(0,0,0,0.03); }
+
+    /* --- Markdown 排版優化 --- */
+    .markdown-content h3 { font-size: 1.1rem; font-weight: 700; margin-top: 12px; margin-bottom: 8px; color: var(--primary-color); }
+    .markdown-content ul { padding-left: 22px; margin-bottom: 8px; }
+    .markdown-content li { margin-bottom: 4px; }
+    .markdown-content p { margin-bottom: 0.6rem; }
+    .markdown-content p:last-child { margin-bottom: 0; }
+    .markdown-content strong { font-weight: 700; color: #333; }
+
+    /* --- 輸入動畫 (Typing Dots) --- */
     .typing-dots span {
-        display: inline-block;
-        width: 8px; height: 8px;
-        background-color: #bbb;
-        border-radius: 50%;
-        margin: 0 3px;
-        animation: typing 1.4s infinite ease-in-out both;
+        display: inline-block; width: 8px; height: 8px; background-color: var(--primary-color); border-radius: 50%; margin: 0 3px;
+        opacity: 0.6; animation: typing 1.4s infinite ease-in-out both;
     }
     .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
     .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
-    @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+    @keyframes typing { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 
-    /* 按鈕動效 */
-    .send-btn:hover { transform: scale(1.05); background-color: var(--primary-hover) !important; }
+    /* --- 按鈕與細節動效 --- */
+    .send-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+    .send-btn:hover { transform: scale(1.08) rotate(5deg); background-color: var(--primary-hover) !important; }
     .send-btn:active { transform: scale(0.95); }
 
-    .chip-btn:hover { background-color: var(--primary-color); color: white; border-color: var(--primary-color); }
+    .chip-btn { background: white; color: #666; transition: 0.2s; }
+    .chip-btn:hover { background-color: var(--primary-color); color: white; border-color: var(--primary-color) !important; transform: translateY(-2px); }
 
-    /* 隱藏 Scrollbar 但保留功能 */
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.1); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(212, 165, 165, 0.4); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+    .fade-in { animation: fadeIn 0.4s ease-out forwards; }
 </style>
 
 <script>
-// 初始化 Markdown 解析器
+// ==========================================
+// 🧠 核心邏輯與 API 串接
+// ==========================================
+
+// 初始化 Markdown 解析器 (開啟自動換行)
 function renderMarkdown(text) {
-    // 簡單的配置，讓換行變成 <br>
     marked.setOptions({ breaks: true });
     return marked.parse(text);
 }
 
-// 頁面載入時渲染歷史訊息的 Markdown
+// 頁面載入：渲染歷史訊息的 Markdown 並捲動到底部
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.markdown-content').forEach(el => {
-        el.innerHTML = renderMarkdown(el.innerText);
+        el.innerHTML = renderMarkdown(el.innerHTML);
     });
     scrollToBottom();
 });
 
-// 點擊快捷按鈕
+// 開啟新對話 (呼叫 API 後重整畫面)
+function createNewChat() {
+    fetch('/api/chat/new', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if(data.status === 'success') {
+            window.location.href = '?session_id=' + data.session_id;
+        }
+    });
+}
+
+// 刪除對話紀錄
+function deleteChat(event, sessionId) {
+    event.stopPropagation(); // 阻止點擊事件冒泡觸發切換聊天室
+    if(!confirm('確定要永久刪除這個對話紀錄嗎？')) return;
+
+    fetch('/api/chat/delete/' + sessionId, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if(data.status === 'success') {
+            window.location.href = '?'; // 重新載入，讓後端自動分配下一個最近的對話
+        }
+    });
+}
+
+// 點擊快捷推薦按鈕
 function fillInput(text) {
     const input = document.getElementById('msgInput');
     input.value = text;
@@ -228,6 +248,8 @@ function fillInput(text) {
 function sendMsg() {
     let input = document.getElementById('msgInput');
     let msg = input.value.trim();
+    let sessionId = document.getElementById('currentSessionId').value;
+
     if (!msg) return;
 
     // 1. 顯示用戶訊息
@@ -235,59 +257,61 @@ function sendMsg() {
     input.value = '';
     input.focus();
 
-    // 2. 顯示「AI 正在輸入...」
+    // 2. 顯示 AI 思考中動畫
     showTyping(true);
 
-    // 3. 呼叫後端 API
+    // 3. 發送請求至後端
     fetch('/api/chat_response', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ message: msg })
+        body: JSON.stringify({ message: msg, session_id: sessionId })
     })
     .then(r => r.json())
     .then(data => {
         showTyping(false);
-        // 4. 顯示 AI 回覆 (支援 Markdown)
+        // 4. 顯示 AI 回覆並解析 Markdown
         appendMsg('ai', data.reply);
+
+        // 💡 體驗優化：如果是「新對話」，在發送完第一句話後自動重整畫面，讓左側標題更新
+        const activeSessionEl = document.querySelector('.active-session .text-truncate');
+        if(activeSessionEl && activeSessionEl.innerText.trim().includes('新對話')) {
+            setTimeout(() => window.location.reload(), 1200);
+        }
     })
     .catch(() => {
         showTyping(false);
-        appendMsg('ai', "⚠️ 抱歉，連線出了點問題，請稍後再試。");
+        appendMsg('ai', "⚠️ 抱歉，伺服器連線出了點小狀況，請稍後再試。");
     });
 }
 
-// 動態新增訊息到畫面
+// 動態新增訊息氣泡到畫面
 function appendMsg(sender, text) {
     let box = document.getElementById('chatBox');
     let div = document.createElement('div');
 
-    // 設定頭像與對話框樣式
     let avatarHTML = sender === 'ai' ?
-        `<div class="me-2 mt-1"><div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width: 35px; height: 35px;"><i class="fas fa-robot"></i></div></div>` : '';
+        `<div class="me-2 mt-1"><div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm border" style="width: 35px; height: 35px; border-color: rgba(212,165,165,0.3) !important;"><i class="fas fa-robot"></i></div></div>` : '';
 
-    let bubbleStyle = sender === 'user' ?
-        `background: var(--primary-color); color: white; margin-left: auto; border-bottom-right-radius: 4px;` :
-        `background: white; color: #444; margin-right: auto; border-bottom-left-radius: 4px;`;
+    let bubbleClass = sender === 'user' ? 'user-bubble' : 'ai-bubble';
 
-    // 如果是 AI，需要解析 Markdown；如果是用戶，直接顯示純文字(防XSS)
+    // XSS 防護與 Markdown 渲染
     let contentHTML = sender === 'ai' ? renderMarkdown(text) : text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
     div.className = `d-flex mb-4 ${sender === 'user' ? 'justify-content-end' : 'justify-content-start'} fade-in`;
     div.innerHTML = `
         ${avatarHTML}
-        <div class="p-3 rounded-4 shadow-sm message-bubble" style="max-width: 85%; ${bubbleStyle}">
-            ${contentHTML}
+        <div class="p-3 rounded-4 shadow-sm message-bubble ${bubbleClass}" style="max-width: 85%;">
+            <div class="${sender === 'ai' ? 'markdown-content' : ''}">${contentHTML}</div>
         </div>
     `;
 
     // 插入在 typing indicator 之前
     let typingEl = document.getElementById('typingIndicator');
     box.insertBefore(div, typingEl);
-
     scrollToBottom();
 }
 
-// 切換輸入動畫顯示
+// 控制輸入動畫的顯示/隱藏
 function showTyping(show) {
     let el = document.getElementById('typingIndicator');
     if(show) {
@@ -303,9 +327,10 @@ function showTyping(show) {
 // 捲動到底部
 function scrollToBottom() {
     let box = document.getElementById('chatBox');
-    box.scrollTop = box.scrollHeight;
+    box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' });
 }
 
+// 支援 Enter 鍵送出
 function handleEnter(e) { if (e.key === 'Enter') sendMsg(); }
 </script>
 {% endblock %}

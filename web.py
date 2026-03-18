@@ -24,6 +24,7 @@ import cv2
 import insightface
 import glob
 import mediapipe as mp
+import google.generativeai as genai
 from authlib.integrations.flask_client import OAuth
 from functools import wraps
 from bs4 import BeautifulSoup
@@ -4640,6 +4641,7 @@ def community_page():
         raw_tags = p['tags']
         tags = []
         if raw_tags:
+            # noinspection PyBroadException
             try:
                 parsed = json.loads(raw_tags)
             except:
@@ -4647,6 +4649,7 @@ def community_page():
 
             if isinstance(parsed, str) and parsed.startswith('['):
                 import ast
+                # noinspection PyBroadException
                 try:
                     parsed = ast.literal_eval(parsed)
                 except:
@@ -4658,6 +4661,7 @@ def community_page():
                 for item in parsed:
                     if isinstance(item, str) and item.startswith('['):
                         import ast
+                        # noinspection PyBroadException
                         try:
                             tags.extend(ast.literal_eval(item))
                         except:
@@ -5240,13 +5244,61 @@ def chat_page():
     """
     [VIP] AI 顧問聊天室
     """
+    if 'user_id' not in session:
+        return redirect(url_for('login_page'))
+
+    user_id = session['user_id']
+    session_id = request.args.get('session_id')
     db_conn = get_db_connection()
-    logs = db_conn.execute(
-        'SELECT * FROM chat_logs WHERE user_id = ? ORDER BY created_at ASC',
-        (session['user_id'],)
-    ).fetchall()
+
+    # 1. 取得使用者的所有聊天室列表 (側邊欄用)
+    chat_sessions = db_conn.execute('SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC',
+                                    (user_id,)).fetchall()
+
+    # 2. 如果沒有任何聊天室，自動幫他建一個
+    if not chat_sessions:
+        new_id = str(uuid.uuid4())
+        db_conn.execute('INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)', (new_id, user_id, '新對話'))
+        db_conn.commit()
+        chat_sessions = db_conn.execute('SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY created_at DESC',
+                                        (user_id,)).fetchall()
+        session_id = new_id
+
+    # 3. 如果沒有指定 session_id，預設載入最新的一個
+    if not session_id and chat_sessions:
+        session_id = chat_sessions[0]['id']
+
+    # 4. 撈取該特定聊天室的對話紀錄
+    logs = db_conn.execute('SELECT * FROM chat_logs WHERE session_id = ? ORDER BY created_at ASC',
+                           (session_id,)).fetchall()
     db_conn.close()
-    return render_template('chat_consultant.html', logs=logs)
+
+    return render_template('chat_consultant.html', logs=logs, sessions=chat_sessions, active_session_id=session_id)
+
+
+# 建立新聊天室 API
+@app.route('/api/chat/new', methods=['POST'])
+def new_chat_session():
+    if 'user_id' not in session: return jsonify({'status': 'error'})
+    new_id = str(uuid.uuid4())
+    db_conn = get_db_connection()
+    db_conn.execute('INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)',
+                    (new_id, session['user_id'], '新對話'))
+    db_conn.commit()
+    db_conn.close()
+    return jsonify({'status': 'success', 'session_id': new_id})
+
+
+# 刪除聊天室 API
+@app.route('/api/chat/delete/<session_id>', methods=['POST'])
+def delete_chat_session(session_id):
+    if 'user_id' not in session: return jsonify({'status': 'error'})
+    db_conn = get_db_connection()
+    db_conn.execute('DELETE FROM chat_logs WHERE session_id = ? AND user_id = ?', (session_id, session['user_id']))
+    db_conn.execute('DELETE FROM chat_sessions WHERE id = ? AND user_id = ?', (session_id, session['user_id']))
+    db_conn.commit()
+    db_conn.close()
+    return jsonify({'status': 'success'})
 
 @app.route('/premium/calendar')
 @vip_required
@@ -6848,73 +6900,79 @@ def admin_add_item():
 
 # --- 11. 工具與系統 ---
 @app.route('/api/chat_response', methods=['POST'])
-def chat_response_api():
-    """
-    [API] AI 形象顧問 - 隨機與生成式回應
-    功能：根據用戶畫像，提供非固定式的穿搭建議
-    """
+def chat_response():
+    if 'user_id' not in session:
+        return jsonify({'reply': '請先登入'})
+
     data = request.json
-    user_msg = data.get('message', '')
+    user_msg = data.get('message', '').strip()
+    session_id = data.get('session_id')  # 接收前端傳來的是在哪個聊天室說話
+    user_id = session['user_id']
 
-    # 1. 獲取用戶背景資料 (Context)
+    if not user_msg or not session_id:
+        return jsonify({'reply': '發生錯誤：找不到對話紀錄'})
+
     db_conn = get_db_connection()
-    user = db_conn.execute('SELECT name, style_preferences FROM users WHERE id=?', (session['user_id'],)).fetchone()
-    analysis = db_conn.execute(
-        'SELECT body_data, final_recommendation FROM analysis_history WHERE user_id=? ORDER BY created_at DESC LIMIT 1',
-        (session['user_id'],)).fetchone()
-    db_conn.close()
 
-    # 解析資料
-    user_name = user['name']
-    # 預設值，若資料庫沒資料時使用
-    body_shape = "標準身形"
-    style_arch = "簡約休閒"
+    try:
+        # 如果聊天室標題還是「新對話」，就用第一句話的前10個字當標題
+        current_session = db_conn.execute('SELECT title FROM chat_sessions WHERE id=?', (session_id,)).fetchone()
+        if current_session and current_session['title'] == '新對話':
+            new_title = user_msg[:10] + ('...' if len(user_msg) > 10 else '')
+            db_conn.execute('UPDATE chat_sessions SET title=? WHERE id=?', (new_title, session_id))
 
-    if analysis:
-        # noinspection PyBroadException
-        try:
-            if analysis['body_data']:
-                b = json.loads(analysis['body_data'])
-                # 取出例如 "梨型"
-                body_shape = b.get('shape', '一般').split('(')[0]
-            if analysis['final_recommendation']:
-                r = json.loads(analysis['final_recommendation'])
-                style_arch = r.get('archetype', '混搭風')
-        except:
-            pass
+        # 儲存使用者的對話，記得存入對應的 session_id
+        db_conn.execute('INSERT INTO chat_logs (session_id, user_id, sender, message) VALUES (?, ?, ?, ?)',
+                        (session_id, user_id, 'user', user_msg))
+        db_conn.commit()
 
-    # 2. 判斷使用哪種 AI 模式
+        # 撈取歷史紀錄時，利用 session_id 過濾，只喚醒這個聊天室的記憶
+        recent_logs = db_conn.execute('''
+            SELECT sender, message FROM chat_logs 
+            WHERE session_id = ? 
+            ORDER BY created_at DESC LIMIT 6
+        ''', (session_id,)).fetchall()
+        recent_logs.reverse()
 
-    # [模式 A] 真 AI (如果有填 API Key 且 Library 安裝成功)
-    if GENAI_API_KEY and model:
-        try:
-            # 建立 Prompt (提示詞)
-            system_prompt = f"""
-            你是一位專業的時尚形象顧問。
-            使用者的名字是 {user_name}，身形是 {body_shape}，喜歡的風格是 {style_arch}。
+        formatted_history = []
+        for log in recent_logs:
+            if log['message'] == user_msg and log['sender'] == 'user' and log == recent_logs[-1]:
+                continue
+            role = "user" if log['sender'] == 'user' else "model"
+            formatted_history.append({"role": role, "parts": [log['message']]})
 
-            請根據使用者的提問：「{user_msg}」
-            給出一個專業、簡潔且溫暖的建議。
+        user_info = db_conn.execute('SELECT name FROM users WHERE id=?', (user_id,)).fetchone()
+        user_name = user_info['name'] if user_info else "貴賓"
 
-            回答要求：
-            1. 使用繁體中文。
-            2. 使用 Markdown 格式 (可以使用粗體、條列)。
-            3. 必須提到他的身形或風格特點。
-            4. 語氣要像朋友一樣親切，不要太機器人。
-            """
-            response = model.generate_content(system_prompt)
-            reply = response.text
-        except Exception as err:
-            print(f"Gemini Error: {err}")
-            reply = generate_dynamic_response(user_name, body_shape, style_arch, user_msg)
+        system_prompt = f"""
+        你是一位擁有10年經驗的頂級時尚形象顧問。現在對話客戶是「{user_name}」。
+        1. 語氣溫柔、自信、具同理心。
+        2. 請使用繁體中文，支援 Markdown 格式。
+        3. 回答精簡扼要，適當加上 Emoji。
+        """
 
-    # [模式 B] 動態語句拼裝 (無 Key 時使用)
-    else:
-        # 為了模擬思考，稍微延遲 0.5 ~ 1.5 秒
-        time.sleep(random.uniform(0.5, 1.5))
-        reply = generate_dynamic_response(user_name, body_shape, style_arch, user_msg)
+        import google.generativeai as genai
+        # 建立 Gemini 模型
+        model = genai.GenerativeModel(model_name='gemini-1.5-flash-latest', system_instruction=system_prompt)
+        chat = model.start_chat(history=formatted_history)
+        response = chat.send_message(user_msg)
+        ai_reply = response.text
 
-    return jsonify({'status': 'success', 'reply': reply})
+    except Exception as e:
+        print(f"AI 聊天錯誤: {e}")
+        ai_reply = "⚠️ 哎呀！顧問大腦稍微當機了，能請您再說一次嗎？"
+
+    try:
+        # 將 AI 的回覆也存進同一個聊天室
+        db_conn.execute('INSERT INTO chat_logs (session_id, user_id, sender, message) VALUES (?, ?, ?, ?)',
+                        (session_id, user_id, 'ai', ai_reply))
+        db_conn.commit()
+    except Exception as e:
+        print(f"儲存AI回覆失敗: {e}")
+    finally:
+        db_conn.close()
+
+    return jsonify({'reply': ai_reply})
 
 @app.route('/api/ai_stylist_chat', methods=['POST'])
 def ai_stylist_chat():
@@ -7341,7 +7399,8 @@ if __name__ == '__main__':
             ("users", "style_dislikes TEXT"),
             ("users", "color_prefs TEXT"),
             ("users", "occasion_prefs TEXT"),
-            ("users", "clothing_issues TEXT")
+            ("users", "clothing_issues TEXT"),
+            ("chat_logs", "session_id TEXT")
             # ----------------------------------
         ]
 
@@ -7355,12 +7414,23 @@ if __name__ == '__main__':
             except:
                 pass  # 欄位已存在，略過
 
-        # 確保穿搭日誌表存在
-        conn.execute('''CREATE TABLE IF NOT EXISTS wear_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
-            date_str TEXT, outfit_desc TEXT, feeling TEXT, rating INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )''')
+        # 確保 AI 聊天室 (Sessions) 表存在
+        conn.execute('''CREATE TABLE IF NOT EXISTS chat_sessions (
+                    id TEXT PRIMARY KEY,
+                    user_id INTEGER,
+                    title TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )''')
+
+        # 確保 AI 聊天紀錄 (Logs) 表存在 (加入了 session_id)
+        conn.execute('''CREATE TABLE IF NOT EXISTS chat_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                    session_id TEXT,
+                    user_id INTEGER,
+                    sender TEXT, 
+                    message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )''')
 
         conn.commit()
         conn.close()

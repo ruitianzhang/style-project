@@ -1,114 +1,164 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container py-4">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-    <div class="text-center mb-5 fade-in">
-        <h2 class="fw-bold" style="color: var(--primary-color);">📅 每日穿搭嚮導</h2>
-        <p class="text-muted">早安，{{ session.user_name }}！這是為您準備的今日策略。</p>
+<div class="container py-4 py-md-5" style="max-width: 1100px; min-height: 85vh;">
+
+    <div class="text-center mb-5 fade-in-up">
+        <span class="badge bg-white text-pink px-3 py-2 rounded-pill border mb-3 shadow-sm" style="font-size: 0.9rem; border-color: rgba(212,165,165,0.3) !important;">
+            <i class="fas fa-sparkles me-1"></i> Today's Pick
+        </span>
+        <h2 class="fw-bold mb-3" style="color: #333; letter-spacing: 1px;">
+            早安，<span class="text-pink">{{ session.get('user_name', '貴賓') }}</span>！
+        </h2>
+        <p class="text-muted fs-5">這是為您量身打造的今日專屬穿搭策略</p>
     </div>
 
-    <div class="row g-4 justify-content-center">
+    <div class="row g-4 align-items-stretch">
 
-        <div class="col-md-6 col-lg-5">
-            <div class="glass-card h-100 text-center border-0 shadow-sm"
-                 style="background: linear-gradient(135deg, rgba(168, 237, 234, 0.2) 0%, rgba(254, 214, 227, 0.2) 100%);">
+        <div class="col-lg-4 fade-in-up" style="animation-delay: 0.1s;">
+            <div class="glass-card p-4 rounded-4 shadow-sm h-100 d-flex flex-column align-items-center justify-content-center position-relative overflow-hidden"
+                 style="background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(249,247,246,0.85)); border: 1px solid rgba(212, 165, 165, 0.25);">
 
-                <h5 class="fw-bold text-secondary mb-3">
-                    <i class="fas fa-cloud-sun me-2"></i>今日天氣 ({{ weather.location_name }})
+                <div class="position-absolute top-0 start-0 w-100 h-100" style="background: radial-gradient(circle at top right, rgba(212,165,165,0.15), transparent 60%); pointer-events: none;"></div>
+
+                <h5 class="fw-bold text-secondary mb-4 z-1">
+                    <i class="fas fa-map-marker-alt me-2 text-pink"></i>{{ weather.location_name if weather is defined and weather else '台北市' }}
                 </h5>
 
-                <div class="display-1 fw-bold my-3" style="color: #555;">
-                    {{ weather.temp }}<span style="font-size: 0.5em;">°C</span>
+                <div class="text-center z-1 mb-4">
+                    <i class="fas fa-cloud-sun mb-3" style="font-size: 4.5rem; color: var(--primary-color); filter: drop-shadow(0 4px 6px rgba(212,165,165,0.3));"></i>
+
+                    <div class="display-2 fw-bold text-dark mt-2" style="letter-spacing: -2px;">
+                        {{ weather.temp if weather is defined and weather else '24' }}<span style="font-size: 0.4em; vertical-align: super; color: #888;">°C</span>
+                    </div>
+                    <p class="text-muted mt-2 fw-medium mb-0">{{ weather.description if weather is defined and weather else '舒適多雲，適合層次穿搭' }}</p>
                 </div>
 
-                <div class="fs-5 mb-4 text-muted">
-                    <i class="fas fa-tint me-1 text-info"></i> {{ weather.humidity }}% | {{ weather.desc }}
-                </div>
-
-                <div class="alert bg-white bg-opacity-75 border-0 rounded-4 shadow-sm text-start d-flex align-items-center">
-                    <i class="fas fa-lightbulb text-warning fa-2x me-3"></i>
-                    <small class="text-muted">
-                        {% if weather.humidity > 80 %}
-                            濕度很高，體感會比實際溫度更悶熱，務必選擇透氣材質。
-                        {% elif weather.temp < 18 %}
-                            早晚溫差大，別忘了帶件外套。
-                        {% else %}
-                            氣候舒適宜人，非常適合展現多層次穿搭！
-                        {% endif %}
-                    </small>
+                <div class="row w-100 mt-auto z-1 border-top pt-3">
+                    <div class="col-6 text-center border-end">
+                        <small class="text-muted d-block mb-1">降雨機率</small>
+                        <span class="fw-bold text-dark"><i class="fas fa-umbrella me-1 text-info opacity-75"></i>{{ weather.pop if weather is defined and weather else '10' }}%</span>
+                    </div>
+                    <div class="col-6 text-center">
+                        <small class="text-muted d-block mb-1">體感溫度</small>
+                        <span class="fw-bold text-dark"><i class="fas fa-thermometer-half me-1 text-warning opacity-75"></i>{{ weather.feels_like if weather is defined and weather else '26' }}°C</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-6 col-lg-5">
-            <div class="glass-card h-100 border-0 shadow-sm">
-                <h5 class="fw-bold text-secondary mb-3">
-                    <i class="far fa-calendar-check me-2"></i>今日行程
-                </h5>
+        <div class="col-lg-8 fade-in-up" style="animation-delay: 0.2s;">
+            <div class="glass-card p-4 p-md-5 rounded-4 shadow-sm h-100 d-flex flex-column"
+                 style="background: white; border: 1px solid rgba(0,0,0,0.05);">
 
-                {% if events %}
-                    <div class="d-flex flex-column gap-3">
-                        {% for event in events %}
-                        <div class="p-3 bg-white rounded-3 shadow-sm border-start border-4" style="border-color: var(--primary-color) !important;">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <strong class="text-dark">{{ event.title }}</strong>
-                                <span class="badge bg-light text-secondary rounded-pill">Today</span>
+                <div class="d-flex align-items-center mb-4 pb-3 border-bottom">
+                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center shadow-sm border me-3" style="width: 50px; height: 50px; border-color: rgba(212,165,165,0.3) !important;">
+                        <img src="https://cdn-icons-png.flaticon.com/512/4202/4202831.png" width="30" alt="AI">
+                    </div>
+                    <h4 class="fw-bold mb-0 text-dark">穿搭策略解析</h4>
+                </div>
+
+                <div class="advice-list flex-grow-1">
+                    {% if advice is defined and advice %}
+                        {% for item in advice %}
+                        <div class="advice-item d-flex align-items-start p-3 mb-3 rounded-4 bg-light border transition-hover">
+                            <div class="icon-box bg-white rounded-circle shadow-sm d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 40px; height: 40px; color: var(--primary-color);">
+                                <i class="fas fa-magic"></i>
                             </div>
-                            {% if event.outfit_desc %}
-                            <div class="mt-2 small text-muted">
-                                <i class="fas fa-tshirt me-1"></i> {{ event.outfit_desc }}
+                            <div class="flex-grow-1 pt-2">
+                                <div class="mb-0 text-dark fw-medium markdown-content" style="line-height: 1.6;">{{ item }}</div>
                             </div>
-                            {% endif %}
                         </div>
                         {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center py-5 text-muted">
-                        <i class="fas fa-coffee fa-3x mb-3 opacity-25"></i>
-                        <p>今天沒有特別安排，<br>穿上最自在的衣服享受一天吧！</p>
-                        <a href="/premium/calendar" class="btn btn-sm btn-outline-secondary rounded-pill mt-2">去行事曆規劃</a>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="row justify-content-center mt-4">
-        <div class="col-lg-10">
-            <div class="glass-card border-0 shadow-sm position-relative overflow-hidden">
-                <div class="position-absolute top-0 start-0 w-100 h-100 bg-primary opacity-10" style="pointer-events: none;"></div>
-
-                <div class="position-relative z-1 text-center p-3">
-                    <h4 class="fw-bold mb-4" style="color: var(--primary-color);">✨ AI 形象顧問建議</h4>
-
-                    <div class="d-flex align-items-start justify-content-center gap-4 text-start">
-                        <div class="d-none d-md-block">
-                            <img src="https://cdn-icons-png.flaticon.com/512/4202/4202831.png" width="80" alt="AI Icon">
+                    {% else %}
+                        <div class="advice-item d-flex align-items-start p-3 mb-3 rounded-4 bg-light border transition-hover">
+                            <div class="icon-box bg-white rounded-circle shadow-sm d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 40px; height: 40px; color: var(--primary-color);">
+                                <i class="fas fa-temperature-low"></i>
+                            </div>
+                            <div class="flex-grow-1 pt-2">
+                                <div class="mb-0 text-dark fw-medium" style="line-height: 1.6;">早晚溫差較大，建議內搭輕薄短袖，外加一件**大地色系**的針織開衫，方便隨時穿脫。</div>
+                            </div>
                         </div>
-                        <div class="bg-white p-4 rounded-4 shadow-sm flex-grow-1">
-                            <ul class="list-unstyled mb-0" style="line-height: 1.8;">
-                                {% for item in advice %}
-                                    <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>{{ item }}</li>
-                                {% endfor %}
-                            </ul>
+                        <div class="advice-item d-flex align-items-start p-3 mb-3 rounded-4 bg-light border transition-hover">
+                            <div class="icon-box bg-white rounded-circle shadow-sm d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 40px; height: 40px; color: var(--primary-color);">
+                                <i class="fas fa-tshirt"></i>
+                            </div>
+                            <div class="flex-grow-1 pt-2">
+                                <div class="mb-0 text-dark fw-medium" style="line-height: 1.6;">下半身推薦搭配修身的高腰直筒牛仔褲，能很好地拉長您的腿部比例，展現好身形。</div>
+                            </div>
                         </div>
-                    </div>
+                    {% endif %}
+                </div>
 
-                    <div class="mt-4">
-                        <a href="{{ url_for('shop_page') }}" class="btn btn-primary rounded-pill px-5 shadow-sm">
-                            <i class="fas fa-search me-2"></i>去衣櫃找類似單品
-                        </a>
-                    </div>
+                <div class="d-flex gap-2 mt-4 pt-3 border-top justify-content-end flex-wrap">
+                    <a href="/premium/chat" class="btn btn-light rounded-pill px-4 py-2 fw-bold border shadow-sm transition-hover text-dark">
+                        <i class="fas fa-comment-dots me-2 text-pink"></i>微調建議
+                    </a>
+                    <a href="/shop" class="btn rounded-pill px-4 py-2 fw-bold shadow-sm transition-hover text-white" style="background-color: var(--primary-color);">
+                        <i class="fas fa-door-open me-2"></i>前往衣櫃搭配
+                    </a>
                 </div>
             </div>
         </div>
     </div>
-
 </div>
 
 <style>
-    .fade-in { animation: fadeInUp 0.8s ease-out; }
-    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    :root {
+        --primary-color: #D4A5A5;
+        --primary-hover: #C39292;
+    }
+    .text-pink { color: var(--primary-color) !important; }
+
+    .fade-in-up {
+        opacity: 0;
+        transform: translateY(20px);
+        animation: fadeInUp 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    @keyframes fadeInUp {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .transition-hover { transition: all 0.3s ease; }
+    .transition-hover:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 15px rgba(212, 165, 165, 0.15) !important;
+    }
+
+    .advice-item { transition: all 0.3s ease; }
+    .advice-item:hover {
+        border-color: rgba(212, 165, 165, 0.5) !important;
+        background-color: white !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+    }
+    .advice-item:hover .icon-box {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+    }
+    .icon-box { transition: all 0.3s ease; }
+
+    /* ==========================================
+       💡 Markdown 專屬美化樣式
+       ========================================== */
+    .markdown-content h3 { font-size: 1.15rem; font-weight: 700; color: var(--primary-color); margin-bottom: 0.5rem; }
+    .markdown-content p { margin-bottom: 0.4rem; }
+    .markdown-content p:last-child { margin-bottom: 0; }
+    .markdown-content strong { font-weight: 700; color: #333; background: linear-gradient(transparent 60%, rgba(212,165,165,0.3) 40%); padding: 0 2px;}
+    .markdown-content ul { padding-left: 1.2rem; margin-bottom: 0; }
+    .markdown-content li { margin-bottom: 0.3rem; }
 </style>
+
+<script>
+    // 💡 網頁載入後，自動將 .markdown-content 裡面的符號轉換為漂亮的排版
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({ breaks: true });
+            document.querySelectorAll('.markdown-content').forEach(el => {
+                el.innerHTML = marked.parse(el.innerText || el.textContent);
+            });
+        }
+    });
+</script>
 {% endblock %}
